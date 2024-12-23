@@ -167,3 +167,9 @@ wandb/
 
 # OS X
 .DS_Store
+
+# sarah stuff
+checkpoints/
+data/
+opt/
+**.pt

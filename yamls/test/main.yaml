@@ -18,6 +18,8 @@ model:
   use_pretrained: false # Train the model from scratch. Set to true to start from the HF off-the-shelf weights.
   pretrained_model_name: ${tokenizer_name}
   tokenizer_name: ${tokenizer_name}
+  # checkpoint_cfg: "yamls/main/bert24-base-v2.yaml" # Path to the pretrained configuration file (YAML or JSON)
+  # checkpoint_load_path: "ep1-ba21195-rank0.pt"  
 
 # Dataloaders
 train_loader:

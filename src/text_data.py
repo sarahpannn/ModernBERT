@@ -32,7 +32,7 @@ from transformers.tokenization_utils_base import BatchEncoding
 # Add src folder root to path to allow us to use relative imports regardless of what directory the script is run from
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 
-from src.sequence_packer import BufferedIterable, GreedyBestFitSequencePacker
+from sequence_packer import BufferedIterable, GreedyBestFitSequencePacker
 
 Tokenizer = Union[PreTrainedTokenizer, PreTrainedTokenizerFast]
 
@@ -387,6 +387,7 @@ def build_text_dataloader(
     mlm_probability = cfg.dataset.get("mlm_probability", None)
     # only use sequence packing if using the no_streaming_dataset
     if not cfg.dataset.get("streaming", True) and cfg.get("sequence_packing", False):
+        # if not streaming and sequence packing, use sequence packer
         dataloader = DataLoader(
             dataset,
             collate_fn=lambda x: x,
@@ -560,7 +561,7 @@ if __name__ == "__main__":
     tokenizer_cfg = om.create(tokenizer_cfg)
     tokenizer = build_tokenizer(tokenizer_cfg)
 
-    loader = build_text_dataloader(cfg, tokenizer, device_batch_size)
+    loader = build_text_dataloader(cfg, tokenizer, device_batch_size, 1)
     tokenizer = loader.dataset.tokenizer  # type: ignore
     for batch_ix, batch in enumerate(islice(loader, 5)):
         print("\n")

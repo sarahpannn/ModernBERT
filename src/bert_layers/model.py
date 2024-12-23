@@ -64,8 +64,10 @@ from transformers.modeling_outputs import (
     ModelOutput,
     MultipleChoiceModelOutput,
     SequenceClassifierOutput,
+    TokenClassifierOutput,
 )
 from transformers.models.bert.modeling_bert import BertPreTrainedModel
+from transformers import AutoModel
 
 from bert_padding import index_put_first_axis
 
@@ -325,14 +327,16 @@ class BertForMaskedLM(BertPreTrainedModel):
         **kwargs,
     ):
         """Load from pre-trained."""
-        model = cls(config, *inputs, **kwargs)
-        if from_tf:
-            raise ValueError("Mosaic BERT does not support loading TensorFlow weights.")
+        # model = cls(config, *inputs, **kwargs)
+        # if from_tf:
+        #     raise ValueError("Mosaic BERT does not support loading TensorFlow weights.")
 
-        state_dict = torch.load(pretrained_checkpoint)
-        # If the state_dict was saved after wrapping with `composer.HuggingFaceModel`, it takes on the `model` prefix
-        consume_prefix_in_state_dict_if_present(state_dict, prefix="model.")
-        missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
+        state_dict = torch.load(pretrained_checkpoint)['state']['model']
+        # # print("State dict before consuming prefix: ", state_dict.keys())
+        # # If the state_dict was saved after wrapping with `composer.HuggingFaceModel`, it takes on the `model` prefix
+        # consume_prefix_in_state_dict_if_present(state_dict, prefix="model.")
+        # # print("State dict after consuming prefix: ", state_dict.keys())
+        # missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
 
         if len(missing_keys) > 0:
             logger.warning(f"Found these missing keys in the checkpoint: {', '.join(missing_keys)}")
@@ -703,7 +707,12 @@ class BertForMultipleChoice(BertPreTrainedModel):
 
 
 class BertForTokenClassification(BertPreTrainedModel):
-    # TBD: Push in future commit
+    """Bert Model transformer with a sequence classification/regression head.
+    
+    This head is just a linear layer on top of the pooled output. Used for,
+    e.g., NER tasks.
+    """
+
     pass
 
 
@@ -1051,11 +1060,13 @@ class FlexBertForMaskedLM(FlexBertPreTrainedModel):
         if from_tf:
             raise ValueError("FlexBERT does not support loading TensorFlow weights.")
 
-        state_dict = torch.load(pretrained_checkpoint)
+        state_dict = torch.load(pretrained_checkpoint)['state']['model']
+        # print("state_dict before", state_dict.keys())
         # If the state_dict was saved after wrapping with `composer.HuggingFaceModel`, it takes on the `model` prefix
         consume_prefix_in_state_dict_if_present(state_dict, prefix="model.")
+        # print("state_dict", state_dict.keys())
+        # print("I AM HERE HELLOOOOOOOOOO")
         missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
-
         if len(missing_keys) > 0:
             logger.warning(f"Found these missing keys in the checkpoint: {', '.join(missing_keys)}")
         if len(unexpected_keys) > 0:
@@ -1291,16 +1302,36 @@ class FlexBertForSequenceClassification(FlexBertPreTrainedModel):
         if from_tf:
             raise ValueError("Mosaic BERT does not support loading TensorFlow weights.")
 
+        # state_dict = torch.load(pretrained_checkpoint)['state']['model']
         state_dict = torch.load(pretrained_checkpoint)
-        # If the state_dict was saved after wrapping with `composer.HuggingFaceModel`, it takes on the `model` prefix
+        # # If the state_dict was saved after wrapping with `composer.HuggingFaceModel`, it takes on the `model` prefix
         consume_prefix_in_state_dict_if_present(state_dict, prefix="model.")
+        # prepend each weight with "bert"
+
+        for key in list(state_dict.keys()):
+            state_dict["bert." + key] = state_dict.pop(key)
+
+        keys_to_remove = ["decoder.weight", "decoder.bias", "head.norm.weight"]
+        for key in keys_to_remove:
+            if key in state_dict:
+                del state_dict[key]
+
+        state_dict["classifier.weight"] = torch.empty((config.num_labels, 
+                                                             config.hidden_size))
+        torch.nn.init.xavier_uniform_(state_dict["classifier.weight"])
+
+        # # Initialize bias with zeros (common practice)
+        state_dict["classifier.bias"] = torch.zeros((config.num_labels,))
+
+        # # print("State dict: ", state_dict.keys())
+
         missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
 
         if len(missing_keys) > 0:
-            logger.warning(f"Found these missing keys in the checkpoint: {', '.join(missing_keys)}")
+            logger.warning(f"Missing these keys in the checkpoint: {', '.join(missing_keys)}")
         if len(unexpected_keys) > 0:
             logger.warning(f"Found these unexpected keys in the checkpoint: {', '.join(unexpected_keys)}")
-
+        # model = AutoModel.from_pretrained(pretrained_checkpoint, config=config)
         return model
 
     def forward(
@@ -1377,6 +1408,174 @@ class FlexBertForSequenceClassification(FlexBertPreTrainedModel):
         return params
 
 
+class FlexBertForTokenClassification(FlexBertPreTrainedModel):
+    """Bert Model transformer with a sequence classification/regression head.
+    
+    This head is just a linear layer on top of the pooled output. Used for,
+    e.g., NER tasks.
+    """
+
+    def __init__(self, config: FlexBertConfig):
+        super().__init__(config)
+        self.num_labels = config.num_labels
+        self.config = config
+
+        self.bert = FlexBertModel(config)
+        # classifier_dropout = (
+        #     config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
+        # )
+        # self.dropout = nn.Dropout(classifier_dropout)
+        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+
+        self._init_weights(reset_params=False)
+
+    def _init_weights(self, module: Optional[nn.Module] = None, reset_params: Optional[bool] = None):
+        assert (module is None) != (reset_params is None), "arg module xor reset_params must be specified"
+        if module:
+            self._init_module_weights(module)
+        else:
+            assert isinstance(reset_params, bool)
+            self.bert._init_weights(reset_params=reset_params)
+            init_weights(self.config, self.classifier, self.config.hidden_size, type_of_module=ModuleType.final_out)
+
+    @classmethod
+    def from_composer(
+        cls,
+        pretrained_checkpoint,
+        state_dict=None,
+        cache_dir=None,
+        from_tf=False,
+        config=None,
+        *inputs,
+        **kwargs,
+    ):
+        """Load from pre-trained."""
+        model = cls(config, *inputs, **kwargs)
+        if from_tf:
+            raise ValueError("Mosaic BERT does not support loading TensorFlow weights.")
+
+        # state_dict = torch.load(pretrained_checkpoint)['state']['model']
+        state_dict = torch.load(pretrained_checkpoint)
+        # # If the state_dict was saved after wrapping with `composer.HuggingFaceModel`, it takes on the `model` prefix
+        consume_prefix_in_state_dict_if_present(state_dict, prefix="model.")
+        # prepend each weight with "bert"
+
+        for key in list(state_dict.keys()):
+            state_dict["bert." + key] = state_dict.pop(key)
+
+        keys_to_remove = ["decoder.weight", "decoder.bias", "head.norm.weight"]
+        for key in keys_to_remove:
+            if key in state_dict:
+                del state_dict[key]
+
+        state_dict["classifier.weight"] = torch.empty((config.num_labels, 
+                                                             config.hidden_size))
+        torch.nn.init.xavier_uniform_(state_dict["classifier.weight"])
+
+        # # Initialize bias with zeros (common practice)
+        state_dict["classifier.bias"] = torch.zeros((config.num_labels,))
+
+        # # print("State dict: ", state_dict.keys())
+
+        missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
+
+        if len(missing_keys) > 0:
+            logger.warning(f"Missing these keys in the checkpoint: {', '.join(missing_keys)}")
+        if len(unexpected_keys) > 0:
+            logger.warning(f"Found these unexpected keys in the checkpoint: {', '.join(unexpected_keys)}")
+        # model = AutoModel.from_pretrained(pretrained_checkpoint, config=config)
+        return model
+
+
+
+    def forward(
+        self,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        return_dict: Optional[bool] = None,
+    ) -> Union[Tuple[torch.Tensor], TokenClassifierOutput]:
+        r"""
+        labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+            Labels for computing the token classification loss.
+            Indices should be in `[0, ..., config.num_labels - 1]`.
+            If `config.num_labels == 1` a regression loss is computed (mean-square loss).
+            If `config.num_labels > 1` a classification loss is computed (cross-entropy).
+        """
+
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        
+        output = self.bert(
+            input_ids,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+        )
+
+        sequence_output = output
+
+        logits = self.classifier(sequence_output)
+
+        # print("Logits: ", logits.shape)
+        # print("Labels: ", labels.shape)
+
+        loss = None
+        if labels is not None:
+        #     if self.config.problem_type is None:
+        #         if self.num_labels == 1:
+        #             self.config.problem_type = "regression"
+        #         elif self.num_labels > 1 and (labels.dtype == torch.long or labels.dtype == torch.int):
+        #             self.config.problem_type = "single_label_classification"
+        #         else:
+        #             self.config.problem_type = "multi_label_classification"
+
+        #     if self.config.problem_type == "regression":
+        #         loss_fct = nn.MSELoss()
+        #         if self.num_labels == 1:
+        #             loss = loss_fct(logits.squeeze(), labels.squeeze())
+        #         else:
+        #             loss = loss_fct(logits, labels)
+        #     elif self.config.problem_type == "single_label_classification":
+        #         loss_fct = nn.CrossEntropyLoss()
+        #         loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+        #     elif self.config.problem_type == "multi_label_classification":
+        #         loss_fct = nn.BCEWithLogitsLoss()
+        #         loss = loss_fct(logits, labels)
+            self.config.problem_type = "single_label_classification"
+            loss_fct = nn.CrossEntropyLoss(ignore_index=-100)
+            new_logits = logits.view(-1, self.num_labels)
+            new_labels = labels.to(torch.long).view(-1)
+            acceptable_values = {0, 1, -100}
+            if not set(new_labels.tolist()).issubset(acceptable_values):
+                print("Unacceptable values in labels: ", set(new_labels.tolist()) - acceptable_values)
+            loss = loss_fct(new_logits, new_labels)
+
+        if not return_dict:
+            output = (logits,) + output
+            return ((loss,) + output) if loss is not None else output
+
+        return TokenClassifierOutput(
+            loss=loss,
+            logits=torch.argmax(logits, -1),
+            hidden_states=None,
+            attentions=None,
+        )
+    
+    def get_number_parameters(self, count_embeddings: bool = True, trainable: bool = True) -> int:
+        """Returns the number of parameters in the model.
+
+        Args:
+            count_embeddings: count the parameters in the embeddings layer, excluding position embeddings.
+            trainable: only count trainable parameters.
+        """
+        params = self.bert.get_number_parameters(count_embeddings, trainable)
+        params += _count_parameters(self.head, trainable)
+        params += _count_parameters(self.classifier, trainable)
+        return params
+
+
+
+
 class FlexBertForMultipleChoice(FlexBertPreTrainedModel):
     """
     Bert Model with a multiple choice classification head on top (a linear layer on top of the pooled output and a
@@ -1426,7 +1625,8 @@ class FlexBertForMultipleChoice(FlexBertPreTrainedModel):
         if from_tf:
             raise ValueError("Mosaic BERT does not support loading TensorFlow weights.")
 
-        state_dict = torch.load(pretrained_checkpoint)
+        state_dict = torch.load(pretrained_checkpoint)['state']['model']
+        print("State dict: ", state_dict)
         # If the state_dict was saved after wrapping with `composer.HuggingFaceModel`, it takes on the `model` prefix
         consume_prefix_in_state_dict_if_present(state_dict, prefix="model.")
         missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)

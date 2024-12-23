@@ -280,7 +280,8 @@ def create_flex_bert_mlm(
 
     metrics = [MaskedAccuracy(ignore_index=-100)]
 
-    if recompute_metric_loss or model_config["loss_function"] not in ["fa_cross_entropy", "cross_entropy"]:
+    if recompute_metric_loss or model_config["loss_function"] not in ["fa_cross_entropy", 
+                                                                      "cross_entropy"]:
         if CrossEntropyLoss is not None:
             metrics = [FALanguageCrossEntropy(ignore_index=-100)] + metrics
         else:
@@ -321,6 +322,7 @@ def create_flex_bert_classification(
     pretrained_checkpoint: Optional[str] = None,
     custom_eval_metrics: Optional[list] = [],
     multiple_choice: Optional[bool] = False,
+    token_classification: Optional[bool] = False,
 ):
     """FlexBERT classification model based on |:hugging_face:| Transformers.
 
@@ -425,6 +427,9 @@ def create_flex_bert_classification(
     if multiple_choice:
         model_cls = bert_layers_module.FlexBertForMultipleChoice
 
+    if token_classification:
+        model_cls = bert_layers_module.FlexBertForTokenClassification
+
     if isinstance(model_config, DictConfig):
         model_config = OmegaConf.to_container(model_config, resolve=True)
 
@@ -454,11 +459,11 @@ def create_flex_bert_classification(
     else:
         # Metrics for a classification model
         metrics = [
-            MulticlassAccuracy(num_classes=num_labels, average="micro"),
-            MatthewsCorrCoef(task="multiclass", num_classes=model.config.num_labels),
+            MulticlassAccuracy(num_classes=num_labels, average="micro", ignore_index=-100),
+            MatthewsCorrCoef(task="multiclass", num_classes=num_labels, ignore_index=-100),
         ]
-        if num_labels == 2:
-            metrics.append(BinaryF1Score())
+        # if num_labels == 2:
+        #     metrics.append(BinaryF1Score())
 
     if model_config.get("problem_type", "") == "multi_label_classification":
         metrics = [
@@ -484,3 +489,6 @@ def create_flex_bert_classification(
     hf_model.model.resize_token_embeddings(config.vocab_size)
 
     return hf_model
+
+
+

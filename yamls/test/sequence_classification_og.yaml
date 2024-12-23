@@ -3,30 +3,38 @@
 #   `composer sequence_classification.py yamls/test/sequence_classification.yaml` (HuggingFace BERT)
 #   `composer sequence_classification.py yamls/test/sequence_classification.yaml model.name=mosaic_bert` (Mosaic BERT)
 
-tokenizer_name: bclavie/olmo_bert_template
 max_seq_len: 1024
+tokenizer_name: bclavie/olmo_bert_template
 
 # Run Name
-run_name: test
+run_name: "eval_on_rewardbench_hidden_dp=0.5"
+checkpoint_run_name: "experiment_001" 
 
-# load_path: /home/public/span/MATH_DPO/modern_bert_test/bert24/ep1-ba21195-rank0.pt
+# load_path: # (Optionally) provide a composer checkpoint to use for the starting weights
 
 # Model
 model:
   name: flex_bert
-  num_labels: 1
+  num_labels: 2
   pretrained_model_name: bert-base-uncased
   tokenizer_name: ${tokenizer_name}
   disable_train_metrics: true
-  pretrained_checkpoint: /home/public/span/MATH_DPO/modern_bert_test/bert24/ep1-ba21195-rank0.pt
+  # pretrained_checkpoint: /home/public/span/MATH_DPO/modern_bert_test/bert24/checkpoints/correct_names.pt
+  pretrained_checkpoint: /home/public/span/MATH_DPO/modern_bert_test/bert24/opt/home/bert24/DPR/output/bert24-large-v2-learning-rate-decay-v3-50B-ep0-ba9000-rank0/bert24-large-v2-learning-rate-decay-v3-50B-ep0-ba9000-rank0-colbertlr-0.0001-harddataset/checkpoint-305/model.pth
+  # pretrained_checkpoint: /home/public/span/MATH_DPO/modern_bert_test/bert24/checkpoints/ep3-ba1626-rank0.pt
+  # pretrained_checkpoint: /home/public/span/MATH_DPO/modern_bert_test/bert24/ep1-ba21195-rank0.pt
   
   model_config:
     vocab_size: 50368
     init_method: full_megatron
-    num_hidden_layers: 22
-    hidden_size: 768
-    intermediate_size: 1152
-    num_attention_heads: 12 # to have head size of 64
+    # num_hidden_layers: 22
+    num_hidden_layers: 28
+    # hidden_size: 768
+    hidden_size: 1024
+    # intermediate_size: 1152
+    intermediate_size: 2624
+    # num_attention_heads: 12 # to have head size of 64
+    num_attention_heads: 16
     attention_layer: rope
     attention_probs_dropout_prob: 0.0
     attn_out_bias: false
@@ -41,9 +49,6 @@ model:
     loss_function: fa_cross_entropy
     loss_kwargs:
       reduction: mean
-    # loss_function: contrastive_loss
-    # loss_kwargs:
-    #   margin: 1.0
     mlp_dropout_prob: 0.0
     mlp_in_bias: false
     mlp_layer: glu
@@ -52,6 +57,7 @@ model:
     norm_kwargs:
       eps: 1e-5
       bias: false
+    hidden_dropout_prob: 0.5
     hidden_act: gelu
     head_pred_act: gelu
     activation_function: gelu # better safe than sorry
@@ -70,7 +76,6 @@ model:
 
 # Dataloaders
 train_loader:
-  name: paired_text
   split: train
   tokenizer_name: ${tokenizer_name}
   max_seq_len: ${max_seq_len}
@@ -79,8 +84,7 @@ train_loader:
   num_workers: 8
 
 eval_loader:
-  name: paired_text
-  split: test
+  split: train
   tokenizer_name: ${tokenizer_name}
   max_seq_len: ${max_seq_len}
   shuffle: true
@@ -90,12 +94,13 @@ eval_loader:
 # Optimization
 scheduler:
   name: linear_decay_with_warmup
-  t_warmup: 0.06dur # Warmup to the full LR for 6% of the training duration
+  # name: cosine_with_warmup
+  t_warmup: 0.10dur # Warmup to the full LR for 6% of the training duration
   alpha_f: 0.02 # Linearly decay to 0.02x the full LR by the end of the training duration
 
 optimizer:
   name: decoupled_adamw
-  lr: 1.0e-5
+  lr: 2.0e-4
   betas:
   - 0.9
   - 0.98
@@ -103,10 +108,10 @@ optimizer:
   weight_decay: 1.0e-6
 
 # Training duration and evaluation frequency
-max_duration: 10ba
-eval_interval: 10ba
+max_duration: 5ep
+eval_interval: 50ba
 eval_subset_num_batches: 4 # For code testing, evaluate on a subset of 4 batches
-global_train_batch_size: 16
+global_train_batch_size: 256
 
 # System
 seed: 17
@@ -116,16 +121,18 @@ precision: fp32
 
 # Logging
 progress_bar: false
-log_to_console: true
+log_to_console: false
 console_log_interval: 1ba
 
-# loggers
-# loggers:
-#   wandb:
-#     project: bert24-runs-seq-cls
-#     entity: sarahpan888
+loggers:
+  wandb:
+    project: bert24-runs-cls
+    entity: sarahpan888
 
 callbacks:
   speed_monitor:
     window_size: 5
   lr_monitor: {}
+
+save_folder: /home/public/span/MATH_DPO/modern_bert_test/bert24/checkpoints
+# save_fs

@@ -14,6 +14,7 @@ LOSS2CLS = {
     "cross_entropy": nn.CrossEntropyLoss,
     "binary_cross_entropy": nn.BCEWithLogitsLoss,
     "mean_squared_error": nn.MSELoss,
+    "contrastive_loss": nn.CosineEmbeddingLoss,
 }
 
 if CrossEntropyLoss is not None:

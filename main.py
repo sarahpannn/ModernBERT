@@ -321,7 +321,8 @@ def init_from_checkpoint(cfg: DictConfig, new_model: nn.Module):
     pretrained_model = build_model(pretrained_cfg.model)
     n_params = sum(p.numel() for p in pretrained_model.parameters())
 
-    checkpoint_filepath = Path(cfg.checkpoint_load_path) / f"{cfg.checkpoint_run_name}" / "latest-rank0.pt"
+    # checkpoint_filepath = Path(cfg.checkpoint_load_path) / f"{cfg.checkpoint_run_name}" / "latest-rank0.pt"
+    checkpoint_filepath = Path(cfg.checkpoint_load_path)
     assert checkpoint_filepath.exists(), f"Checkpoint {checkpoint_filepath} does not exist"
     state = torch.load(_ensure_valid_checkpoint(checkpoint_filepath), map_location="cpu")
 
@@ -337,8 +338,8 @@ def init_from_checkpoint(cfg: DictConfig, new_model: nn.Module):
 
     init_mlm_model_from_pretrained(
         config=pretrained_config,
-        pretrained_model=pretrained_model.model,
-        new_model=new_model.model,
+        pretrained_model=pretrained_model,
+        new_model=new_model,
         mode=cfg.get("mode", "tile_weights_from_middle"),
     )
     print(f"Initalized model from checkpoint {cfg.checkpoint_run_name} with {n_params=:.4e} parameters")

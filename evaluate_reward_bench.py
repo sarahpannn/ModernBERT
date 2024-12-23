@@ -148,7 +148,7 @@ def build_optimizer(cfg, model):
         raise ValueError(f"Not sure how to build optimizer: {cfg.name}")
 
 
-def build_my_dataloader(cfg: DictConfig, device_batch_size: int, is_eval=False):
+def build_my_dataloader(cfg: DictConfig, device_batch_size: int):
     """Create a dataloader for classification.
 
     **Modify this function to train on your own dataset!**
@@ -204,33 +204,26 @@ def build_my_dataloader(cfg: DictConfig, device_batch_size: int, is_eval=False):
 
     # print('RANDOM SAMPLE: ', dataset[0])
 
-    if is_eval:
-        dataset = data_module.create_reward_bench_dataset(
-            task="sarahpann/reward_bench_processed",
-            split=cfg.split,
-            tokenizer_name=cfg.tokenizer_name,
-            max_seq_length=cfg.max_seq_len,
-        )
-
-    else:
-        dataset = data_module.create_skywork_dataset(
-            task="sarahpann/processed_skywork",
-            split=cfg.split,
-            tokenizer_name=cfg.tokenizer_name,
-            max_seq_length=cfg.max_seq_len,
-        )
+    dataset = data_module.create_reward_bench_dataset(
+        task="sarahpann/reward_bench_processed",
+        split=cfg.split,
+        tokenizer_name=cfg.tokenizer_name,
+        max_seq_length=cfg.max_seq_len,
+    )
 
     class CustomDataCollator(transformers.DefaultDataCollator):
-        def __init__(self):
+        def __init__(self, features_to_collate=None):
             super().__init__()
+            self.features_to_collate = features_to_collate
 
         def __call__(self, features):
-            output = super().__call__(features)
-            # print('output keys: ', output.keys())
-            # print('len input_ids: ', output['input_ids'].shape)
-            # print('label: ', output['label'])
-            # print('len attention_mask: ', output['attention_mask'].shape)
-            # print('len token_type_ids: ', output['token_type_ids'].shape)
+            # features is a list of dictionaries
+            to_collate = [{k: f[k] for k in self.features_to_collate} for f in features]
+            output = super().__call__(to_collate)
+            # add remaining features
+            for k in features[0].keys():
+                if k not in self.features_to_collate:
+                    output[k] = [f[k] for f in features]
             return output
             
 
@@ -240,7 +233,10 @@ def build_my_dataloader(cfg: DictConfig, device_batch_size: int, is_eval=False):
         # As an alternative to formatting the examples inside the dataloader,
         # you can write a custom data collator to do that instead.
         # collate_fn=transformers.default_data_collator(features=["input_ids", "label"]),
-        collate_fn=CustomDataCollator(),
+        collate_fn=CustomDataCollator(features_to_collate=["input_ids", 
+                                                           "token_type_ids", 
+                                                           "attention_mask", 
+                                                           "label"]),
         batch_size=device_batch_size,
         sampler=dist.get_sampler(dataset, drop_last=cfg.drop_last, shuffle=cfg.shuffle),
         num_workers=cfg.num_workers,
@@ -298,37 +294,31 @@ def train(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) 
     print("Initializing model...")
     model = build_model(cfg.model)
 
-    # model.model.save_pretrained("/home/public/span/MATH_DPO/modern_bert_test/bert24/checkpoints")
-    # print('<----------------- MODEL SAVED ----------------->')
-
+    # Write classification layer to file
+    # cls_layer = model.model.classifier
+    # torch.save(cls_layer, '/home/public/span/MATH_DPO/modern_bert_test/bert24/checkpoints/cls_layer.pth')
+    # print("<----- Classification layer saved to file ------>")
 
     n_params = sum(p.numel() for p in model.parameters())
     print(f"{n_params=:.4e}")
 
     # Dataloaders
-    print("Building train loader...")
-    train_loader = build_my_dataloader(
-        cfg.train_loader,
-        cfg.global_train_batch_size // dist.get_world_size(),
-    )
+    # print("Building train loader...")
+    # train_loader = build_my_dataloader(
+    #     cfg.train_loader,
+    #     cfg.global_train_batch_size // dist.get_world_size(),
+    # )
     print("Building eval loader...")
     global_eval_batch_size = cfg.get("global_eval_batch_size", cfg.global_train_batch_size)
     eval_loader = build_my_dataloader(
         cfg.eval_loader,
         cfg.get("device_eval_batch_size", global_eval_batch_size // dist.get_world_size()),
-        is_eval=True,
     )
     eval_evaluator = Evaluator(
         label="eval",
         dataloader=eval_loader,
         device_eval_microbatch_size=cfg.get("device_eval_microbatch_size", None),
     )
-
-    # Optimizer
-    optimizer = build_optimizer(cfg.optimizer, model)
-
-    # Scheduler
-    scheduler = build_scheduler(cfg.scheduler)
 
     # Loggers
     loggers = [build_logger(name, logger_cfg) for name, logger_cfg in cfg.get("loggers", {}).items()]
@@ -342,48 +332,112 @@ def train(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) 
     if cfg.get("run_name") is None:
         cfg.run_name = os.environ.get("COMPOSER_RUN_NAME", "sequence-classification")
 
+
+    all_dsets = {'llmbar-adver-manual', 'hep-python', 'refusals-dangerous', 
+                 'mt-bench-med', 'refusals-offensive', 'alpacaeval-length', 
+                 'llmbar-natural', 'alpacaeval-hard', 'mt-bench-easy', 
+                 'mt-bench-hard', 'llmbar-adver-GPTOut', 'hep-rust', 
+                 'hep-java', 'donotanswer', 'hep-js', 'llmbar-adver-GPTInst',
+                   'math-prm', 'hep-go', 'alpacaeval-easy', 'xstest-should-respond', 
+                   'llmbar-adver-neighbor', 'hep-cpp', 'xstest-should-refuse'}
+
+    categories = {
+        "chat": {'alpacaeval-easy', 'alpacaeval-length', 'alpacaeval-hard', 
+                 'mt-bench-easy', 'mt-bench-med'},
+        "chat_hard": {'mt-bench-hard', 'llmbar-natural', 'llmbar-adver-neighbor',
+                      'llmbar-adver-GPTInst', 'llmbar-adver-GPTOut', 'llmbar-adver-manual'},
+        "safety": {'refusals-dangerous', 'refusals-offensive', 'xstest-should-respond', 
+                   'xstest-should-refuse', 'xstest-should-respond', 'donotanswer'},
+        "reasoning": {'math-prm', 'hep-cpp', 'hep-go', 'hep-java', 'hep-js', 'hep-python', 'hep-rust'},
+    }
+
+    inverse_map = {v: k for k in categories for v in categories[k]}
+
+    category_tallies = {k: 0 for k in categories.keys()}
+
+    category_amounts = {k: 0 for k in categories.keys()}
+
+    model = model.model
+    model.to("cuda")
+    model.eval()
+    
+    with torch.no_grad():
+        for example in eval_loader:
+            new_example = {k: v.to(model.device) for k, v in example.items() if k not in {"original_dataset", 
+                                                                                    "token_type_ids"}}
+            
+            model_out = model(**new_example)
+
+            # print(model_out)
+
+            # SequenceClassifierOutput(loss=tensor(0.6620, device='cuda:0', grad_fn=<NllLossBackward0>), logits=tensor([[0.7202, 0.8792],
+            # [0.8286, 0.8564]], device='cuda:0', grad_fn=<AddmmBackward0>), hidden_states=None, attentions=None)
+
+            predictions = torch.argmax(model_out.logits, dim=1)
+
+            # print(predictions)
+            # print(example['labels'])
+
+            for i in range(len(predictions)):
+                category_amounts[inverse_map[example['original_dataset'][i]]] += 1
+                if predictions[i] == example['labels'][i]:
+                    category_tallies[inverse_map[example['original_dataset'][i]]] += 1
+
+    
+    print(f"{category_tallies=}")
+
+    # get accuracies
+    accuracy_dict = {k: category_tallies[k] / category_amounts[k] for k in category_tallies.keys()}
+    print(f"{accuracy_dict=}")
+
+    # get total accuracy
+    total_correct = sum(category_tallies.values())
+    total_amount = sum(category_amounts.values())
+    total_accuracy = total_correct / total_amount
+    print(f"{total_accuracy=}")
+
+    return
+
     # Build the Trainer
-    trainer = Trainer(
-        run_name=cfg.run_name,
-        seed=cfg.seed,
-        model=model,
-        algorithms=algorithms,
-        train_dataloader=train_loader,
-        eval_dataloader=eval_evaluator,
-        train_subset_num_batches=cfg.get("train_subset_num_batches", -1),
-        eval_subset_num_batches=cfg.get("eval_subset_num_batches", -1),
-        optimizers=optimizer,
-        schedulers=scheduler,
-        max_duration=cfg.max_duration,
-        eval_interval=cfg.eval_interval,
-        progress_bar=cfg.progress_bar,
-        log_to_console=cfg.log_to_console,
-        console_log_interval=cfg.console_log_interval,
-        loggers=loggers,
-        callbacks=callbacks,
-        precision=cfg.precision,
-        device=cfg.get("device"),
-        device_train_microbatch_size=cfg.get("device_train_microbatch_size", "auto"),
-        save_folder=cfg.get("save_folder"),
-        save_interval=cfg.get("save_interval", "1000ba"),
-        save_num_checkpoints_to_keep=cfg.get("save_num_checkpoints_to_keep", -1),
-        save_overwrite=cfg.get("save_overwrite", False),
-        load_path=cfg.get("load_path"),
-        load_weights_only=True,
-        autoresume=False,
-    )
+    # trainer = Trainer(
+    #     run_name=cfg.run_name,
+    #     seed=cfg.seed,
+    #     model=model,
+    #     algorithms=algorithms,
+    #     train_dataloader=train_loader,
+    #     eval_dataloader=eval_evaluator,
+    #     train_subset_num_batches=cfg.get("train_subset_num_batches", -1),
+    #     eval_subset_num_batches=cfg.get("eval_subset_num_batches", -1),
+    #     optimizers=optimizer,
+    #     schedulers=scheduler,
+    #     max_duration=cfg.max_duration,
+    #     eval_interval=cfg.eval_interval,
+    #     progress_bar=cfg.progress_bar,
+    #     log_to_console=cfg.log_to_console,
+    #     console_log_interval=cfg.console_log_interval,
+    #     loggers=loggers,
+    #     callbacks=callbacks,
+    #     precision=cfg.precision,
+    #     device=cfg.get("device"),
+    #     device_train_microbatch_size=cfg.get("device_train_microbatch_size", "auto"),
+    #     save_folder=cfg.get("save_folder"),
+    #     save_interval=cfg.get("save_interval", "1000ba"),
+    #     save_num_checkpoints_to_keep=cfg.get("save_num_checkpoints_to_keep", -1),
+    #     save_overwrite=cfg.get("save_overwrite", False),
+    #     load_path=cfg.get("load_path"),
+    #     load_weights_only=True,
+    #     autoresume=False,
+    # )
 
-    print("Logging config...")
-    log_config(cfg)
+    # print("Logging config...")
+    # log_config(cfg)
 
-    if do_train:
-        print("Starting training...")
-        trainer.fit()
+    # if do_train:
+    #     print("Starting training...")
+    #     trainer.fit()
 
-        model.model.save_pretrained("/home/public/span/MATH_DPO/modern_bert_test/bert24/checkpoints")
-
-    if return_trainer:
-        return trainer
+    # if return_trainer:
+    #     return trainer
 
 
 if __name__ == "__main__":
