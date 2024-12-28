@@ -456,6 +456,7 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
             cfg=cfg.eval_loader,
             tokenizer=model.tokenizer,
             device_batch_size=cfg.get("device_eval_batch_size", global_eval_batch_size // dist.get_world_size()),
+            eval_mode=True,
         )
         eval_evaluator = Evaluator(
             label="eval",

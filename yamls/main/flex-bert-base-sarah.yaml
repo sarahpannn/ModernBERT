@@ -11,7 +11,7 @@ tokenizer_name: bclavie/olmo_bert_template # switch to bert tokenizer until we a
 mlm_probability: 0.3 # FlexBERT should use 30% masking for optimal performance
 
 # Run Name
-run_name: mlm_cls_w_eval
+run_name: with_unpadded
 
 # Model
 model:
@@ -20,7 +20,7 @@ model:
   recompute_metric_loss: false # recompute metric loss, use if passing label_smoothing to record non-label-smoothed loss as a metric
   tokenizer_name: ${tokenizer_name}
   pretrained_checkpoint: /home/public/span/MATH_DPO/modern_bert_test/bert24/opt/home/bert24/DPR/output/bert24-large-v2-learning-rate-decay-v3-50B-ep0-ba9000-rank0/bert24-large-v2-learning-rate-decay-v3-50B-ep0-ba9000-rank0-colbertlr-0.0001-harddataset/checkpoint-305/model.pth
-
+  # pretrained_checkpoint: /home/public/span/MATH_DPO/modern_bert_test/bert24/checkpoints/correct_names.pt
   # FlexBERT 'base' generally uses the default architecture values for from the Hugging Face BertConfig object
   # Note: if using the pretrained_checkpoint argument to create a model from an existing checkpoint, make sure
   # the model_config settings match the architecture of the existing model
@@ -162,9 +162,8 @@ loggers:
     entity: sarahpan888
 
 # (Optional) Checkpoint to local filesystem or remote object store
-# save_interval: 3500ba
-# save_num_checkpoints_to_keep: 1  # Important, this cleans up checkpoints saved to DISK
-# save_folder:      # e.g. './{run_name}/ckpt' (local) or 's3://mybucket/mydir/{run_name}/ckpt' (remote)
+save_num_checkpoints_to_keep: 1  # Important, this cleans up checkpoints saved to DISK
+save_folder: /home/public/span/MATH_DPO/modern_bert_test/bert24/checkpoints
 
 # (Optional) Load from local filesystem or remote object store to
 # start from an existing model checkpoint;
