@@ -416,7 +416,51 @@ def build_text_dataloader(
         )
         return BufferedIterable(sequence_packer, buffer_size=cfg.get("packing_prefetch_factor", 5))
     else:
-        collate_fn = transformers.DataCollatorForLanguageModeling(
+
+        class CustomDataCollatorForLanguageModeling(transformers.DataCollatorForLanguageModeling):
+            def torch_mask_tokens(self, inputs: Any, special_tokens_mask: Optional[Any] = None):
+                """
+                Prepare masked tokens inputs/labels for masked language modeling: 80% MASK, 10% random, 10% original.
+                """
+                labels = inputs.clone()
+                # We sample a few tokens in each sequence for MLM training (with probability `self.mlm_probability`)
+                probability_matrix = torch.full(labels.shape, self.mlm_probability)
+                if special_tokens_mask is None:
+                    special_tokens_mask = [
+                        tokenizer.get_special_tokens_mask(val, already_has_special_tokens=True) for val in labels.tolist()
+                    ]
+                    special_tokens_mask = torch.tensor(special_tokens_mask, dtype=torch.bool)
+                    # block out first three tokens for joint CLS training
+                    special_tokens_mask[:, :3] = True
+                else:
+                    special_tokens_mask = special_tokens_mask.bool()
+
+                probability_matrix.masked_fill_(special_tokens_mask, value=0.0)
+                masked_indices = torch.bernoulli(probability_matrix).bool()
+                labels[~masked_indices] = -100  # We only compute loss on masked tokens
+
+                # except second token of each sequence
+                labels[:, 1] = inputs[:, 1].clone()
+
+                # 80% of the time, we replace masked input tokens with tokenizer.mask_token ([MASK])
+                indices_replaced = torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & masked_indices
+                inputs[indices_replaced] = tokenizer.convert_tokens_to_ids(self.tokenizer.mask_token)
+
+                # 10% of the time, we replace masked input tokens with random word
+                indices_random = torch.bernoulli(torch.full(labels.shape, 0.5)).bool() & masked_indices & ~indices_replaced
+                random_words = torch.randint(len(tokenizer), labels.shape, dtype=torch.long)
+                inputs[indices_random] = random_words[indices_random]
+
+                inputs[:, 1] = tokenizer.cls_token_id
+
+                # The rest of the time (10% of the time) we keep the masked input tokens unchanged
+                return inputs, labels
+
+        # collate_fn = transformers.DataCollatorForLanguageModeling(
+        #     tokenizer=dataset.tokenizer, mlm=mlm_probability is not None, mlm_probability=mlm_probability
+        # )
+
+        collate_fn = CustomDataCollatorForLanguageModeling(
             tokenizer=dataset.tokenizer, mlm=mlm_probability is not None, mlm_probability=mlm_probability
         )
 
@@ -498,7 +542,7 @@ class NoStreamingDataset(Dataset):
         if "input_ids" in sample:
             for k in list(sample.keys()):
                 if isinstance(sample[k], np.ndarray):
-                    if sample[k][0] != 50281:
+                    if sample[k][0] != 50281: # if not BOS token, add it
                         sample[k] = np.insert(sample[k], 0, 50281)[: self.max_seq_len]
                     if sample[k][-1] != 50282:
                         sample[k] = sample[k][: self.max_seq_len - 1]

@@ -205,16 +205,16 @@ def build_my_dataloader(cfg: DictConfig, device_batch_size: int, is_eval=False):
     # print('RANDOM SAMPLE: ', dataset[0])
 
     if is_eval:
-        dataset = data_module.create_comparison_reward_bench_dataset(
-            task="sarahpann/reward_bench_processed",
+        dataset = data_module.create_tok_cls_reward_bench_dataset(
+            task="sarahpann/reward_bench_processed_labeled",
             split=cfg.split,
             tokenizer_name=cfg.tokenizer_name,
             max_seq_length=cfg.max_seq_len,
         )
 
     else:
-        dataset = data_module.create_comparison_skywork_dataset(
-            task="sarahpann/processed_skywork",
+        dataset = data_module.create_tok_cls_skywork_dataset(
+            task="sarahpann/processed_skywork_labeled",
             split=cfg.split,
             tokenizer_name=cfg.tokenizer_name,
             max_seq_length=cfg.max_seq_len,
@@ -235,6 +235,7 @@ def build_my_dataloader(cfg: DictConfig, device_batch_size: int, is_eval=False):
             
 
     dataset = cast(Dataset, dataset)
+
     dataloader = DataLoader(
         dataset,
         # As an alternative to formatting the examples inside the dataloader,
@@ -281,6 +282,7 @@ def build_model(cfg: DictConfig):
             model_config=cfg.get("model_config"),
             tokenizer_name=cfg.get("tokenizer_name"),
             gradient_checkpointing=cfg.get("gradient_checkpointing"),
+            token_classification=True,
         )
     else:
         raise ValueError(f"Not sure how to build model with name={cfg.name}")
@@ -298,7 +300,7 @@ def train(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) 
     print("Initializing model...")
     model = build_model(cfg.model)
 
-    print("Model max sequence length: ", model.config.max_position_embeddings)
+    print(model.get_metrics())
 
     # model.model.save_pretrained("/home/public/span/MATH_DPO/modern_bert_test/bert24/checkpoints")
     # print('<----------------- MODEL SAVED ----------------->')

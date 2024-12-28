@@ -19,6 +19,7 @@ sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 from composer import Evaluator, Trainer, algorithms
 from composer.callbacks import LRMonitor, MemoryMonitor, OptimizerMonitor, RuntimeEstimator, SpeedMonitor
 from composer.core import DataSpec
+from composer.core.types import Dataset
 from composer.loggers import WandBLogger
 from composer.optim import DecoupledAdamW
 from composer.optim.scheduler import (
@@ -31,7 +32,11 @@ from composer.utils.checkpoint import _ensure_valid_checkpoint
 from omegaconf import DictConfig, OmegaConf
 from omegaconf import OmegaConf as om
 from torch.optim import AdamW
+from torch.utils.data import DataLoader
 
+import transformers
+
+import src.evals.data as data_module
 import src.flex_bert as flex_bert_module
 import src.hf_bert as hf_bert_module
 import src.mosaic_bert as mosaic_bert_module
@@ -251,33 +256,104 @@ def build_dataloader(
     device_batch_size,
     count_padding_tokens=True,
     device_microbatch_size: int | None = None,
+    eval_mode=False,
 ):
-    split_batch_fn = None
-    num_samples_in_batch_fn = None
-    num_tokens_in_batch_fn = None
-
-    if cfg.name == "text":
-        data_loader = text_data_module.build_text_dataloader(
-            cfg,
-            tokenizer,
-            device_batch_size,
-            device_microbatch_size=device_microbatch_size,
+    if not eval_mode:
+        dataset = data_module.create_vanilla_mlm_cls_skywork_dataset(
+            task="sarahpann/mlm_cls_skywork",
+            split=cfg.split,
+            tokenizer_name=cfg.tokenizer_name,
+            max_seq_length=cfg.max_seq_len,
         )
+
     else:
-        raise ValueError(f"Not sure how to build dataloader with config: {cfg}")
+        dataset = data_module.create_vanilla_mlm_cls_rewardbench_dataset(
+            task="sarahpann/mlm_cls_rewardbench",
+            split=cfg.split,
+            tokenizer_name=cfg.tokenizer_name,
+            max_seq_length=cfg.max_seq_len,
+        )
 
-    if not count_padding_tokens:
-        num_tokens_in_batch_fn = get_num_tokens_in_batch_unpadded
-    if cfg.get("sequence_packing", False):
-        split_batch_fn = split_packed_batch
-        num_samples_in_batch_fn = get_num_samples_in_packed_batch
+    class CustomDataCollatorForLanguageModeling(transformers.DataCollatorForLanguageModeling):
+        def torch_mask_tokens(self, inputs, special_tokens_mask):
+            """
+            Prepare masked tokens inputs/labels for masked language modeling: 80% MASK, 10% random, 10% original.
+            """
+            labels = inputs.clone()
+            # We sample a few tokens in each sequence for MLM training (with probability `self.mlm_probability`)
+            probability_matrix = torch.full(labels.shape, self.mlm_probability)
+            if special_tokens_mask is None:
+                special_tokens_mask = [
+                    tokenizer.get_special_tokens_mask(val, already_has_special_tokens=True) for val in labels.tolist()
+                ]
+                special_tokens_mask = torch.tensor(special_tokens_mask, dtype=torch.bool)
+                # block out first three tokens for joint CLS training
+                special_tokens_mask[:, :3] = True
+            else:
+                special_tokens_mask = special_tokens_mask.bool()
 
-    data_loader = DataSpec(
-        data_loader,
-        get_num_tokens_in_batch=num_tokens_in_batch_fn,
-        split_batch=split_batch_fn,
-        get_num_samples_in_batch=num_samples_in_batch_fn,
+            probability_matrix.masked_fill_(special_tokens_mask, value=0.0)
+            masked_indices = torch.bernoulli(probability_matrix).bool()
+            labels[~masked_indices] = -100  # We only compute loss on masked tokens
+
+            # except second token of each sequence
+            labels[:, 1] = inputs[:, 1].clone()
+
+            # 80% of the time, we replace masked input tokens with tokenizer.mask_token ([MASK])
+            indices_replaced = torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & masked_indices
+            inputs[indices_replaced] = tokenizer.convert_tokens_to_ids(self.tokenizer.mask_token)
+
+            # 10% of the time, we replace masked input tokens with random word
+            indices_random = torch.bernoulli(torch.full(labels.shape, 0.5)).bool() & masked_indices & ~indices_replaced
+            random_words = torch.randint(len(tokenizer), labels.shape, dtype=torch.long)
+            inputs[indices_random] = random_words[indices_random]
+
+            inputs[:, 1] = tokenizer.cls_token_id
+
+            # The rest of the time (10% of the time) we keep the masked input tokens unchanged
+            return inputs, labels
+        
+    collator = CustomDataCollatorForLanguageModeling(tokenizer=tokenizer, mlm_probability=0.15)
+        
+    dataset = cast(Dataset, dataset)
+    data_loader = DataLoader(
+        dataset,
+        collate_fn=collator,
+        batch_size=device_batch_size,
+        sampler=dist.get_sampler(dataset, drop_last=cfg.drop_last, shuffle=cfg.shuffle),
+        num_workers=cfg.num_workers,
+        pin_memory=cfg.get("pin_memory", True),
+        prefetch_factor=cfg.get("prefetch_factor", 2),
+        persistent_workers=cfg.get("persistent_workers", True),
+        timeout=cfg.get("timeout", 0),
     )
+
+    # split_batch_fn = None
+    # num_samples_in_batch_fn = None
+    # num_tokens_in_batch_fn = None
+
+    # if cfg.name == "text":
+    #     data_loader = text_data_module.build_text_dataloader(
+    #         cfg,
+    #         tokenizer,
+    #         device_batch_size,
+    #         device_microbatch_size=device_microbatch_size,
+    #     )
+    # else:
+    #     raise ValueError(f"Not sure how to build dataloader with config: {cfg}")
+
+    # if not count_padding_tokens:
+    #     num_tokens_in_batch_fn = get_num_tokens_in_batch_unpadded
+    # if cfg.get("sequence_packing", False):
+    #     split_batch_fn = split_packed_batch
+    #     num_samples_in_batch_fn = get_num_samples_in_packed_batch
+
+    # data_loader = DataSpec(
+    #     data_loader,
+    #     get_num_tokens_in_batch=num_tokens_in_batch_fn,
+    #     split_batch=split_batch_fn,
+    #     get_num_samples_in_batch=num_samples_in_batch_fn,
+    # )
     return data_loader
 
 
@@ -359,6 +435,8 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
     n_params = sum(p.numel() for p in model.parameters())
     print(f"{n_params=:.4e}")
 
+    print("Model max sequence length: ", model.config.max_position_embeddings)
+
     if cfg.get("init_from_checkpoint", None) is not None:
         init_from_checkpoint(cfg.init_from_checkpoint, model)
 
@@ -433,18 +511,15 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
         loggers=loggers,
         callbacks=callbacks,
         precision=cfg.precision,
-        device=cfg.get("device", None),
+        device=cfg.get("device"),
         device_train_microbatch_size=cfg.get("device_train_microbatch_size", "auto"),
-        save_folder=cfg.get("save_folder", None),
+        save_folder=cfg.get("save_folder"),
         save_interval=cfg.get("save_interval", "1000ba"),
         save_num_checkpoints_to_keep=cfg.get("save_num_checkpoints_to_keep", -1),
         save_overwrite=cfg.get("save_overwrite", False),
-        load_path=cfg.get("load_path", None),
-        load_weights_only=cfg.get("load_weights_only", False),
-        python_log_level=cfg.get("python_log_level", None),
-        autoresume=cfg.get("autoresume", None),
-        fsdp_config=cfg.get("fsdp_config", None),
-        compile_config=cfg.get("compile_config", None),
+        load_path=cfg.get("load_path"),
+        load_weights_only=True,
+        autoresume=False,
     )
 
     print("Logging config...")

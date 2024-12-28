@@ -1060,10 +1060,13 @@ class FlexBertForMaskedLM(FlexBertPreTrainedModel):
         if from_tf:
             raise ValueError("FlexBERT does not support loading TensorFlow weights.")
 
-        state_dict = torch.load(pretrained_checkpoint)['state']['model']
+        state_dict = torch.load(pretrained_checkpoint)
         # print("state_dict before", state_dict.keys())
         # If the state_dict was saved after wrapping with `composer.HuggingFaceModel`, it takes on the `model` prefix
         consume_prefix_in_state_dict_if_present(state_dict, prefix="model.")
+
+        for key in list(state_dict.keys()):
+            state_dict["bert." + key] = state_dict.pop(key)
         # print("state_dict", state_dict.keys())
         # print("I AM HERE HELLOOOOOOOOOO")
         missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
@@ -1132,23 +1135,31 @@ class FlexBertForMaskedLM(FlexBertPreTrainedModel):
 
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        if self.unpad_embeddings and (indices is None and cu_seqlens is None and max_seqlen is None):
-            batch_size, seq_len = input_ids.shape[:2]
-            input_ids, indices, cu_seqlens, max_seqlen, position_ids, labels = self.unpad_inputs(
-                input_ids, attention_mask, position_ids, labels
-            )
+        # if self.unpad_embeddings and (indices is None and cu_seqlens is None and max_seqlen is None):
+        #     batch_size, seq_len = input_ids.shape[:2]
+        #     input_ids, indices, cu_seqlens, max_seqlen, position_ids, labels = self.unpad_inputs(
+        #         input_ids, attention_mask, position_ids, labels
+        #     )
+
+        # print("SIZE OF INPUTS", input_ids.shape)
+        # print("SIZE OF ATTENTION MASK", attention_mask.shape)
 
         output = self.bert(
             input_ids,
             attention_mask=attention_mask,
             position_ids=position_ids,
-            indices=indices,
-            cu_seqlens=cu_seqlens,
-            max_seqlen=max_seqlen,
+            # position_ids=position_ids,
+            # indices=indices,
+            # cu_seqlens=cu_seqlens,
+            # max_seqlen=max_seqlen,
         )
 
         if self.masked_prediction and labels is not None:
             # flatten labels and output first
+            label_copy = labels
+            label_copy[:, 2:] = -100
+            label_copy = label_copy.view(-1)
+
             labels = labels.view(-1)
             output = output.view(labels.shape[0], -1)
 
@@ -1156,6 +1167,7 @@ class FlexBertForMaskedLM(FlexBertPreTrainedModel):
             mask_tokens = labels != self.loss_fn.ignore_index
             output = output[mask_tokens]
             labels = labels[mask_tokens]
+            label_copy = label_copy[mask_tokens]
 
         if self.compile_model:
             logits = self.compiled_head(output)
@@ -1196,6 +1208,7 @@ class FlexBertForMaskedLM(FlexBertPreTrainedModel):
                     )
             else:
                 loss = self.loss_fn(logits, labels)
+                labels = label_copy
 
         if self.pad_logits:
             return MaskedLMOutput(
@@ -1387,6 +1400,8 @@ class FlexBertForSequenceClassification(FlexBertPreTrainedModel):
         if not return_dict:
             output = (logits,) + output
             return ((loss,) + output) if loss is not None else output
+            
+                    
 
         return SequenceClassifierOutput(
             loss=loss,

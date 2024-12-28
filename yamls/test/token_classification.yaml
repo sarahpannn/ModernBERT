@@ -3,15 +3,15 @@
 #   `composer sequence_classification.py yamls/test/sequence_classification.yaml` (HuggingFace BERT)
 #   `composer sequence_classification.py yamls/test/sequence_classification.yaml model.name=mosaic_bert` (Mosaic BERT)
 
-max_seq_len: 3600
+max_seq_len: 1024
 tokenizer_name: bclavie/olmo_bert_template
 
 # Run Name
-run_name: "sequence_cls_proper_7e-5_full_seq"
+run_name: "t_cls_1e-4_.06warmup_.6dropout"
 checkpoint_run_name: "experiment_001" 
 
 # load_path: # (Optionally) provide a composer checkpoint to use for the starting weights
-
+problem_type: single_label_classification
 # Model
 model:
   name: flex_bert
@@ -57,7 +57,7 @@ model:
     norm_kwargs:
       eps: 1e-5
       bias: false
-    hidden_dropout_prob: 0.5
+    hidden_dropout_prob: 0.6
     hidden_act: gelu
     head_pred_act: gelu
     activation_function: gelu # better safe than sorry
@@ -100,7 +100,7 @@ scheduler:
 
 optimizer:
   name: decoupled_adamw
-  lr: 7.0e-5
+  lr: 1.0e-4
   betas:
   - 0.9
   - 0.98
