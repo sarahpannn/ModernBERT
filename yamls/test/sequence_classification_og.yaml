@@ -11,7 +11,6 @@ run_name: "sequence_cls_proper_7e-5_full_seq"
 checkpoint_run_name: "experiment_001" 
 
 # load_path: # (Optionally) provide a composer checkpoint to use for the starting weights
-
 # Model
 model:
   name: flex_bert
@@ -20,6 +19,7 @@ model:
   tokenizer_name: ${tokenizer_name}
   disable_train_metrics: true
   # pretrained_checkpoint: /home/public/span/MATH_DPO/modern_bert_test/bert24/checkpoints/correct_names.pt
+  
   pretrained_checkpoint: /home/public/span/MATH_DPO/modern_bert_test/bert24/opt/home/bert24/DPR/output/bert24-large-v2-learning-rate-decay-v3-50B-ep0-ba9000-rank0/bert24-large-v2-learning-rate-decay-v3-50B-ep0-ba9000-rank0-colbertlr-0.0001-harddataset/checkpoint-305/model.pth
   # pretrained_checkpoint: /home/public/span/MATH_DPO/modern_bert_test/bert24/checkpoints/ep3-ba1626-rank0.pt
   # pretrained_checkpoint: /home/public/span/MATH_DPO/modern_bert_test/bert24/ep1-ba21195-rank0.pt

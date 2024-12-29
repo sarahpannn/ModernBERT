@@ -11,10 +11,12 @@ from __future__ import annotations
 import copy
 import os
 import sys
+from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 import torch
 from torch import Tensor
+import torch.nn as nn
 
 # Add src folder root to path to allow us to use relative imports regardless of what directory the script is run from
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
@@ -24,6 +26,7 @@ from omegaconf import DictConfig, OmegaConf
 import bert_layers as bert_layers_module
 import src.bert_layers.configuration_bert as configuration_bert_module
 import transformers
+from transformers.modeling_outputs import MaskedLMOutput, ModelOutput
 from composer.metrics.nlp import BinaryF1Score, LanguageCrossEntropy, MaskedAccuracy
 from composer.models.huggingface import HuggingFaceModel
 from composer.devices import DeviceCPU
@@ -169,7 +172,150 @@ class EfficientHuggingFaceModel(HuggingFaceModel):
         else:
             metric_result = {}
         return metric_result
+    
+@dataclass
+class MaskedLMOutput(ModelOutput):
+    loss: Optional[torch.FloatTensor] = None
+    logits: torch.FloatTensor = None
+    hidden_states: Optional[Tuple[torch.FloatTensor, ...]] = None
+    attentions: Optional[Tuple[torch.FloatTensor, ...]] = None
+    indices: Optional[torch.LongTensor] = None
+    cu_seqlens: Optional[torch.LongTensor] = None
+    max_seqlen: Optional[int] = None
+    batch_size: Optional[int] = None
+    seq_len: Optional[int] = None
+    labels: Optional[torch.LongTensor] = None
 
+def create_modern_bert_mlm(
+    pretrained_model_name: str = "answerdotai/ModernBERT-large",
+    model_config: Optional[dict] = None,
+    tokenizer_name: Optional[str] = None,
+    gradient_checkpointing: Optional[bool] = False,
+    pretrained_checkpoint: Optional[str] = None,
+    recompute_metric_loss: Optional[bool] = False,
+    disable_train_metrics: Optional[bool] = False,
+):
+    model = transformers.AutoModelForMaskedLM.from_pretrained(pretrained_model_name)
+    tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_name)
+
+    def forward(
+        self,
+        input_ids: Optional[torch.Tensor],
+        attention_mask: Optional[torch.Tensor] = None,
+        sliding_window_mask: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        indices: Optional[torch.Tensor] = None,
+        cu_seqlens: Optional[torch.Tensor] = None,
+        max_seqlen: Optional[int] = None,
+        batch_size: Optional[int] = None,
+        seq_len: Optional[int] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        **kwargs,
+    ) -> Union[Tuple[torch.Tensor], MaskedLMOutput]:
+        
+        label_copy = labels.clone()
+        label_copy[:, 2:] = -100
+
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        self._maybe_set_compile()
+
+        # if self.config._attn_implementation == "flash_attention_2":
+        #     if indices is None and cu_seqlens is None and max_seqlen is None:
+        #         batch_size, seq_len = input_ids.shape[:2]
+        #         if attention_mask is None:
+        #             attention_mask = torch.ones((batch_size, seq_len), device=input_ids.device, dtype=torch.bool)
+        #         with torch.no_grad():
+        #             input_ids, indices, cu_seqlens, max_seqlen, position_ids, labels = _unpad_modernbert_input(
+        #                 inputs=input_ids, attention_mask=attention_mask, position_ids=position_ids, labels=labels
+        #             )
+
+        outputs = self.model(
+            input_ids,
+            attention_mask=attention_mask,
+            sliding_window_mask=sliding_window_mask,
+            position_ids=position_ids,
+            indices=indices,
+            cu_seqlens=cu_seqlens,
+            max_seqlen=max_seqlen,
+            batch_size=batch_size,
+            seq_len=seq_len,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+        last_hidden_state = outputs[0]
+
+        if self.sparse_prediction and labels is not None:
+            # flatten labels and output first
+            labels = labels.view(-1)
+            label_copy = label_copy.view(-1)
+            last_hidden_state = last_hidden_state.view(labels.shape[0], -1)
+
+            # then filter out the non-masked tokens
+            mask_tokens = labels != self.sparse_pred_ignore_index
+            last_hidden_state = last_hidden_state[mask_tokens]
+            labels = labels[mask_tokens]
+            label_copy = label_copy[mask_tokens]
+
+        logits = (
+            self.compiled_head(last_hidden_state)
+            if self.config.reference_compile
+            else self.decoder(self.head(last_hidden_state))
+        )
+
+        loss = None
+        if labels is not None:
+            loss = self.loss_function(logits, labels, vocab_size=self.config.vocab_size)
+
+        # if self.config._attn_implementation == "flash_attention_2":
+        #     with torch.no_grad():
+        #         logits = _pad_modernbert_output(inputs=logits, indices=indices, batch=batch_size, seqlen=seq_len)
+        if not return_dict:
+            output = (logits,)
+            return ((loss,) + output) if loss is not None else output
+
+        return MaskedLMOutput(
+            loss=loss,
+            logits=logits,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions,
+            labels=label_copy,
+        )
+    
+    model.forward = forward.__get__(model)
+
+    metrics = [MaskedAccuracy(ignore_index=-100)]
+
+    if recompute_metric_loss or model_config["loss_function"] not in ["fa_cross_entropy", 
+                                                                      "cross_entropy"]:
+        if CrossEntropyLoss is not None:
+            metrics = [FALanguageCrossEntropy(ignore_index=-100)] + metrics
+        else:
+            metrics = [LanguageCrossEntropy(ignore_index=-100)] + metrics
+    else:
+        metrics = [EfficientCrossEntropy()] + metrics
+    if model_config.get("loss_kwargs", {}).get("return_z_loss", False):
+        metrics += [EfficientZLoss()]
+
+    eval_metrics = copy.deepcopy(metrics)
+    if disable_train_metrics:
+        metrics = None
+
+
+    hf_model = EfficientHuggingFaceModel(
+        model=model,
+        tokenizer=tokenizer,
+        use_logits=True,
+        metrics=metrics,
+        eval_metrics=eval_metrics,
+        allow_embedding_resizing=True,
+    )
+
+    return hf_model
+   
 
 def create_flex_bert_mlm(
     pretrained_model_name: str = "bert-base-uncased",
@@ -298,10 +444,11 @@ def create_flex_bert_mlm(
     hf_model = EfficientHuggingFaceModel(
         model=model,
         tokenizer=tokenizer,
-        use_logits=True,
+        # use_logits=True,
+        use_logits=False,
         metrics=metrics,
         eval_metrics=eval_metrics,
-        allow_embedding_resizing=model.config.allow_embedding_resizing,
+        allow_embedding_resizing=True,
     )
 
     # Padding for divisibility by 8

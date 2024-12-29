@@ -67,7 +67,7 @@ from transformers.modeling_outputs import (
     TokenClassifierOutput,
 )
 from transformers.models.bert.modeling_bert import BertPreTrainedModel
-from transformers import AutoModel
+from transformers import AutoModel, AutoModelForMaskedLM
 
 from bert_padding import index_put_first_axis
 
@@ -1060,7 +1060,11 @@ class FlexBertForMaskedLM(FlexBertPreTrainedModel):
         if from_tf:
             raise ValueError("FlexBERT does not support loading TensorFlow weights.")
 
-        state_dict = torch.load(pretrained_checkpoint)
+        try:
+            state_dict = torch.load(pretrained_checkpoint)
+        except Exception as e:
+            hf_model = AutoModelForMaskedLM.from_pretrained(pretrained_checkpoint)  
+            return hf_model
         # print("state_dict before", state_dict.keys())
         # If the state_dict was saved after wrapping with `composer.HuggingFaceModel`, it takes on the `model` prefix
         consume_prefix_in_state_dict_if_present(state_dict, prefix="model.")
@@ -1133,7 +1137,7 @@ class FlexBertForMaskedLM(FlexBertPreTrainedModel):
         # Prediction scores are only computed for masked tokens and the (bs,
         # seqlen) dimensions are flattened
 
-        label_copy = labels
+        label_copy = labels.clone()
         label_copy[:, 2:] = -100
 
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -1161,7 +1165,6 @@ class FlexBertForMaskedLM(FlexBertPreTrainedModel):
 
         if self.masked_prediction and labels is not None:
             # flatten labels and output first
-            # label_copy = labels.view(original_shape)
             
             label_copy = label_copy.view(-1)
             labels = labels.view(-1)
@@ -1719,7 +1722,6 @@ class FlexBertForMultipleChoice(FlexBertPreTrainedModel):
         params += _count_parameters(self.head, trainable)
         params += _count_parameters(self.classifier, trainable)
         return params
-
 
 def init_model_from_pretrained(
     pretrained_model: FlexBertModel,
