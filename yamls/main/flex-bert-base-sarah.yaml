@@ -8,10 +8,10 @@ data_remote: sarahpann/mlm_cls_skywork
 
 max_seq_len: 3600
 tokenizer_name: bclavie/olmo_bert_template # switch to bert tokenizer until we add [MASK] token to the llama tokenizer meta-llama/Llama-2-7b-hf
-mlm_probability: 0.3 # FlexBERT should use 30% masking for optimal performance
+# mlm_probability: 0.30 # FlexBERT should use 30% masking for optimal performance
 
 # Run Name
-run_name: proper_loading
+run_name: ${optimizer.lr}_lr_${model.model_config.hidden_dropout_prob}_dropout_${mlm_probability}_mlm
 
 # Model
 model:
@@ -38,6 +38,7 @@ model:
     gradient_checkpointing: false
     hidden_activation: gelu
     hidden_size: 1024
+    # hidden_dropout_probability: 0.0
     initializer_cutoff_factor: 2.0
     initializer_range: 0.02
     intermediate_size: 2624
@@ -63,6 +64,8 @@ model:
     sliding_window: 128
     loss_function: fa_cross_entropy
 
+add_prefix:
+
 # Dataloaders
 train_loader:
   name: text
@@ -80,6 +83,7 @@ train_loader:
   shuffle: true
   drop_last: true
   num_workers: 8
+  add_prefix: ${add_prefix}
 
 eval_loader:
   name: text
@@ -97,6 +101,7 @@ eval_loader:
   shuffle: true
   drop_last: true
   num_workers: 8
+  add_prefix: ${add_prefix}
 
 # Optimization
 scheduler:
@@ -106,7 +111,7 @@ scheduler:
 
 optimizer:
   name: decoupled_adamw
-  lr: 5.0e-5 # Peak learning rate
+  # lr: 1e-4
   betas:
   - 0.9
   - 0.98
@@ -116,8 +121,8 @@ optimizer:
 
 # algorithms:
 
-max_duration: 5ep # Subsample the training data for ~275M samples
-eval_interval: 50ba
+max_duration: 1ep # Subsample the training data for ~275M samples
+eval_interval: 100ba
 global_train_batch_size: 256
 
 # System
@@ -131,7 +136,7 @@ device_eval_microbatch_size: 4
 
 # Logging
 progress_bar: false
-log_to_console: true
+log_to_console: false
 console_log_interval: 1ba
 
 callbacks:
@@ -145,14 +150,14 @@ algorithms:
     clipping_threshold: 1.0
 
 # (Optional) W&B logging
-# loggers:
-#   wandb:
-#     project: bert24-mlm
-#     entity: sarahpan888
+loggers:
+  wandb:
+    project: bert24-mlm
+    entity: sarahpan888
 
 # (Optional) Checkpoint to local filesystem or remote object store
-save_num_checkpoints_to_keep: 1  # Important, this cleans up checkpoints saved to DISK
-save_folder: /home/public/span/MATH_DPO/modern_bert_test/bert24/checkpoints
+# save_num_checkpoints_to_keep: 1  # Important, this cleans up checkpoints saved to DISK
+# save_folder: /home/public/span/MATH_DPO/modern_bert_test/bert24/checkpoints
 
 # (Optional) Load from local filesystem or remote object store to
 # start from an existing model checkpoint;

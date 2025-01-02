@@ -1383,6 +1383,9 @@ class FlexBertForSequenceClassification(FlexBertPreTrainedModel):
         pooled_output = self.head(output)
         logits = self.classifier(pooled_output)
 
+        print("LOGITS DTYPE ", logits.dtype)
+        print("LABELS DTYPE ", labels.dtype)
+
         loss = None
         if labels is not None:
             # Compute loss
@@ -1397,6 +1400,8 @@ class FlexBertForSequenceClassification(FlexBertPreTrainedModel):
             if self.config.problem_type == "regression":
                 loss_fct = nn.MSELoss()
                 if self.num_labels == 1:
+                    labels = labels.to(logits.dtype)
+                    # print("LABELS NEW DTYPE ", labels.dtype)
                     loss = loss_fct(logits.squeeze(), labels.squeeze())
                 else:
                     loss = loss_fct(logits, labels)
@@ -1411,7 +1416,6 @@ class FlexBertForSequenceClassification(FlexBertPreTrainedModel):
             output = (logits,) + output
             return ((loss,) + output) if loss is not None else output
             
-                    
 
         return SequenceClassifierOutput(
             loss=loss,

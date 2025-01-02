@@ -6,6 +6,7 @@ import sys
 import warnings
 from pathlib import Path
 from typing import Optional, cast
+import argparse
 
 import torch
 from torch import nn
@@ -264,6 +265,7 @@ def build_dataloader(
             split=cfg.split,
             tokenizer_name=cfg.tokenizer_name,
             max_seq_length=cfg.max_seq_len,
+            add_prefix=cfg.add_prefix,
         )
 
     else:
@@ -272,6 +274,7 @@ def build_dataloader(
             split=cfg.split,
             tokenizer_name=cfg.tokenizer_name,
             max_seq_length=cfg.max_seq_len,
+            add_prefix=cfg.add_prefix,
         )
 
     class CustomDataCollatorForLanguageModeling(transformers.DataCollatorForLanguageModeling):
@@ -288,7 +291,10 @@ def build_dataloader(
                 ]
                 special_tokens_mask = torch.tensor(special_tokens_mask, dtype=torch.bool)
                 # block out first three tokens for joint CLS training
-                special_tokens_mask[:, :3] = True
+                if not cfg.add_prefix:
+                    special_tokens_mask[:, :3] = True
+                else:
+                    special_tokens_mask[:, :8] = True
             else:
                 special_tokens_mask = special_tokens_mask.bool()
 
@@ -297,7 +303,10 @@ def build_dataloader(
             labels[~masked_indices] = -100  # We only compute loss on masked tokens
 
             # except second token of each sequence
-            labels[:, 1] = inputs[:, 1].clone()
+            if not cfg.add_prefix:
+                labels[:, 1] = inputs[:, 1].clone()
+            if cfg.add_prefix:
+                labels[:, 6] = inputs[:, 6].clone()
 
             # 80% of the time, we replace masked input tokens with tokenizer.mask_token ([MASK])
             indices_replaced = torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & masked_indices
@@ -308,12 +317,15 @@ def build_dataloader(
             random_words = torch.randint(len(tokenizer), labels.shape, dtype=torch.long)
             inputs[indices_random] = random_words[indices_random]
 
-            inputs[:, 1] = tokenizer.cls_token_id
+            if not cfg.add_prefix:
+                inputs[:, 1] = tokenizer.cls_token_id
+            else:
+                inputs[:, 6] = tokenizer.cls_token_id
 
             # The rest of the time (10% of the time) we keep the masked input tokens unchanged
             return inputs, labels
         
-    collator = CustomDataCollatorForLanguageModeling(tokenizer=tokenizer, mlm_probability=0.15)
+    collator = CustomDataCollatorForLanguageModeling(tokenizer=tokenizer, mlm_probability=cfg.dataset.mlm_probability)
         
     dataset = cast(Dataset, dataset)
     data_loader = DataLoader(

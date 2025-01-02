@@ -66,6 +66,7 @@ def create_vanilla_dataset(
     dataset_subset: str = None,
     task_column_names: dict = _glue_task_column_names,
     tokenize_fn_factory: callable = None,
+    add_prefix: bool = False,
 ):
     try:
         import datasets
@@ -99,17 +100,27 @@ def create_vanilla_dataset(
     if not isinstance(text_column_names, tuple):
         text_column_names = [text_column_names]
 
+    prefix = "The preferred completion is[SEP]"
+
     def tokenize_fn_factory(tokenizer, max_seq_length):
         def tokenizer_fn(inp):
             # print("chosen", inp[text_column_names[0]])
             # print("rejected", inp[text_column_names[1]])
 
-            text = tokenizer(
-                text=inp[text_column_names[0]],
-                padding="max_length",
-                max_length=max_seq_length,
-                truncation=True,
-            )
+            if not add_prefix:
+                text = tokenizer(
+                    text=inp[text_column_names[0]],
+                    padding="max_length",
+                    max_length=max_seq_length,
+                    truncation=True,
+                )
+            else:
+                text = tokenizer(
+                    text=[prefix + text for text in inp[text_column_names[0]]],
+                    padding="max_length",
+                    max_length=max_seq_length,
+                    truncation=True,
+                )
 
             ret_dict = {
             "input_ids": text["input_ids"],

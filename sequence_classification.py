@@ -382,7 +382,7 @@ def train(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) 
         print("Starting training...")
         trainer.fit()
 
-        model.model.save_pretrained("/home/public/span/MATH_DPO/modern_bert_test/bert24/checkpoints")
+        # model.model.save_pretrained("/home/public/span/MATH_DPO/modern_bert_test/bert24/checkpoints")
 
     if return_trainer:
         return trainer

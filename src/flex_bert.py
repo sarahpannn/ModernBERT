@@ -195,7 +195,8 @@ def create_modern_bert_mlm(
     recompute_metric_loss: Optional[bool] = False,
     disable_train_metrics: Optional[bool] = False,
 ):
-    model = transformers.AutoModelForMaskedLM.from_pretrained(pretrained_model_name)
+    model = transformers.AutoModelForMaskedLM.from_pretrained(pretrained_model_name, 
+                                                              config=model_config)
     tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_name)
 
     def forward(
@@ -580,16 +581,19 @@ def create_flex_bert_classification(
     if isinstance(model_config, DictConfig):
         model_config = OmegaConf.to_container(model_config, resolve=True)
 
-    config = configuration_bert_module.FlexBertConfig.from_pretrained(pretrained_model_name, **model_config)
+    # config = configuration_bert_module.FlexBertConfig.from_pretrained(pretrained_model_name, **model_config)
 
     # Padding for divisibility by 8
-    if config.vocab_size % 8 != 0:
-        config.vocab_size += 8 - (config.vocab_size % 8)
+    # if config.vocab_size % 8 != 0:
+    #     config.vocab_size += 8 - (config.vocab_size % 8)
 
-    if pretrained_checkpoint is not None:
-        model = model_cls.from_composer(pretrained_checkpoint=pretrained_checkpoint, config=config)
-    else:
-        model = model_cls(config)
+    # if pretrained_checkpoint is not None:
+    #     model = model_cls.from_composer(pretrained_checkpoint=pretrained_checkpoint, config=config)
+    # else:
+    #     model = model_cls(config)
+    model = transformers.AutoModelForSequenceClassification.from_pretrained(pretrained_model_name, 
+                                                                            num_labels=num_labels,
+                                                                            config=model_config)
 
     if gradient_checkpointing:
         model.gradient_checkpointing_enable()  # type: ignore
@@ -626,14 +630,14 @@ def create_flex_bert_classification(
             *metrics,
             *[metric_cls() for metric_cls in custom_eval_metrics],
         ],
-        allow_embedding_resizing=model.config.allow_embedding_resizing,
+        allow_embedding_resizing=True,
     )
 
     # Padding for divisibility by 8
     # We have to do it again here because wrapping by HuggingFaceModel changes it
-    if config.vocab_size % 8 != 0:
-        config.vocab_size += 8 - (config.vocab_size % 8)
-    hf_model.model.resize_token_embeddings(config.vocab_size)
+    # if config.vocab_size % 8 != 0:
+    #     config.vocab_size += 8 - (config.vocab_size % 8)
+    # hf_model.model.resize_token_embeddings(config.vocab_size)
 
     return hf_model
 
