@@ -7,7 +7,7 @@ max_seq_len: 3600
 tokenizer_name: bclavie/olmo_bert_template
 
 # Run Name
-run_name: ${optimizer.lr}_lr_${model.model_config.hidden_dropout_prob}_dropout
+run_name: ${model.freeze_layers}_layers_frozen_${optimizer.lr}_lr
 checkpoint_run_name: "experiment_001" 
 
 # load_path: # (Optionally) provide a composer checkpoint to use for the starting weights
@@ -23,6 +23,8 @@ model:
   # pretrained_checkpoint: /home/public/span/MATH_DPO/modern_bert_test/bert24/opt/home/bert24/DPR/output/bert24-large-v2-learning-rate-decay-v3-50B-ep0-ba9000-rank0/bert24-large-v2-learning-rate-decay-v3-50B-ep0-ba9000-rank0-colbertlr-0.0001-harddataset/checkpoint-305/model.pth
   # pretrained_checkpoint: /home/public/span/MATH_DPO/modern_bert_test/bert24/checkpoints/ep3-ba1626-rank0.pt
   # pretrained_checkpoint: /home/public/span/MATH_DPO/modern_bert_test/bert24/ep1-ba21195-rank0.pt
+  freeze: true
+  # freeze_layers: 27 # valid are 0 through 27
   
   model_config:
     attention_bias: false
@@ -42,7 +44,8 @@ model:
     gradient_checkpointing: false
     hidden_activation: gelu
     hidden_size: 1024
-    # hidden_dropout_probability: 0.0
+    # hidden_dropout_prob: 0.55
+    hidden_dropout_prob: 0.0
     initializer_cutoff_factor: 2.0
     initializer_range: 0.02
     intermediate_size: 2624
@@ -102,7 +105,7 @@ optimizer:
   weight_decay: 1.0e-6
 
 # Training duration and evaluation frequency
-max_duration: 5ep
+max_duration: 1ep
 eval_interval: 50ba
 eval_subset_num_batches: 4 # For code testing, evaluate on a subset of 4 batches
 global_train_batch_size: 256

@@ -8,11 +8,26 @@ from pathlib import Path
 from typing import Optional, cast
 import argparse
 
+original_dir = os.getcwd()
+
+print(original_dir)
+
 import torch
 from torch import nn
 
+import torch._dynamo
+torch._dynamo.config.suppress_errors = True
+
+post_import = os.getcwd()
+print(post_import)
+
+os.chdir(original_dir)
+
 from src.bert_layers.configuration_bert import FlexBertConfig
 from src.bert_layers.model import init_mlm_model_from_pretrained
+
+import peft
+from peft import LoraConfig
 
 # Add folder root to path to allow us to use relative imports regardless of what directory the script is run from
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
@@ -260,24 +275,40 @@ def build_dataloader(
     eval_mode=False,
 ):
     if not eval_mode:
-        dataset = data_module.create_vanilla_mlm_cls_skywork_dataset(
-            task="sarahpann/mlm_cls_skywork",
+        dataset = data_module.create_reasoning_preference_to_flan_style_dataset(
+            task="sarahpann/skywork_reasoning",
             split=cfg.split,
             tokenizer_name=cfg.tokenizer_name,
             max_seq_length=cfg.max_seq_len,
-            add_prefix=cfg.add_prefix,
+            prefix=cfg.prefix,
         )
 
     else:
-        dataset = data_module.create_vanilla_mlm_cls_rewardbench_dataset(
-            task="sarahpann/mlm_cls_rewardbench",
+        # dataset = data_module.create_vanilla_mlm_cls_rewardbench_dataset(
+        #     task="sarahpann/mlm_cls_rewardbench",
+        #     split=cfg.split,
+        #     tokenizer_name=cfg.tokenizer_name,
+        #     max_seq_length=cfg.max_seq_len,
+        #     add_prefix=cfg.add_prefix,
+        # )
+
+        dataset = data_module.create_rw_bench_reasoning_preference_to_flan_style_dataset(
+            task="sarahpann/rwb_reasoning",
             split=cfg.split,
             tokenizer_name=cfg.tokenizer_name,
             max_seq_length=cfg.max_seq_len,
-            add_prefix=cfg.add_prefix,
+            prefix=cfg.prefix,
         )
 
     class CustomDataCollatorForLanguageModeling(transformers.DataCollatorForLanguageModeling):
+        # same init function, but add length of prefix to the class
+        def __init__(self, tokenizer, mlm_probability=0.15, prompt=None):
+            super().__init__(tokenizer=tokenizer, mlm_probability=mlm_probability)
+            self.tokenizer = tokenizer
+            self.mlm_probability = mlm_probability
+            if prompt is not None:
+                self.prompt_len = len(tokenizer(prompt)["input_ids"]) - 1 # for the sep token
+
         def torch_mask_tokens(self, inputs, special_tokens_mask):
             """
             Prepare masked tokens inputs/labels for masked language modeling: 80% MASK, 10% random, 10% original.
@@ -291,10 +322,12 @@ def build_dataloader(
                 ]
                 special_tokens_mask = torch.tensor(special_tokens_mask, dtype=torch.bool)
                 # block out first three tokens for joint CLS training
+                # TODO: PONDER, should we be special masking these if not join CLS training?
                 if not cfg.add_prefix:
                     special_tokens_mask[:, :3] = True
-                else:
-                    special_tokens_mask[:, :8] = True
+                # else:
+                #     special_tokens_mask[:, :self.prompt_len] = True
+
             else:
                 special_tokens_mask = special_tokens_mask.bool()
 
@@ -305,8 +338,9 @@ def build_dataloader(
             # except second token of each sequence
             if not cfg.add_prefix:
                 labels[:, 1] = inputs[:, 1].clone()
-            if cfg.add_prefix:
-                labels[:, 6] = inputs[:, 6].clone()
+
+            # if cfg.add_prefix:
+            #     labels[:, 6] = inputs[:, 6].clone()
 
             # 80% of the time, we replace masked input tokens with tokenizer.mask_token ([MASK])
             indices_replaced = torch.bernoulli(torch.full(labels.shape, 0.8)).bool() & masked_indices
@@ -319,13 +353,73 @@ def build_dataloader(
 
             if not cfg.add_prefix:
                 inputs[:, 1] = tokenizer.cls_token_id
-            else:
-                inputs[:, 6] = tokenizer.cls_token_id
+            # else:
+            #     inputs[:, 6] = tokenizer.cls_token_id
+
+            # if cfg.add_prefix:
+                # last_padding_token = 
 
             # The rest of the time (10% of the time) we keep the masked input tokens unchanged
             return inputs, labels
+
+
+    class CustomDataCollatorForFlanStyleQuestionAnswering(transformers.DataCollatorForLanguageModeling):
+        def __init__(self, tokenizer, mlm_probability=0.15, prompt=None):
+            super().__init__(tokenizer=tokenizer, mlm_probability=mlm_probability)
+            self.tokenizer = tokenizer
+            self.mlm_probability = mlm_probability
+
+        def torch_mask_tokens(self, inputs, special_tokens_mask):
+            """
+            Mask the last non-SEP non-PAD token in the sequence.
+            """
+            labels = inputs.clone()
+
+            pad_token_id = self.tokenizer.pad_token_id
+            sep_token_id = self.tokenizer.sep_token_id
+            mask_token_id = self.tokenizer.mask_token_id
+
+            batch_size, seq_length = inputs.shape
+
+            if special_tokens_mask is None:
+                special_tokens_mask = [
+                    tokenizer.get_special_tokens_mask(val, already_has_special_tokens=True) for val in labels.tolist()
+                ]
+                special_tokens_mask = torch.tensor(special_tokens_mask, dtype=torch.bool)
+
+            # Find the last [SEP] token index in each sequence
+            sep_positions = (inputs == sep_token_id).int()
+            last_sep_indices = (sep_positions * torch.arange(seq_length, device=inputs.device)).argmax(dim=1)
+
+            # Initialize a mask for which token to replace with [MASK]
+            mask_positions = torch.zeros_like(inputs, dtype=torch.bool)
+
+            for i in range(batch_size):
+                sep_index = last_sep_indices[i].item()
+
+                # Traverse backward to find the second-to-last valid token
+                for j in range(sep_index - 1, -1, -1):
+                    if inputs[i, j] not in {pad_token_id, sep_token_id}:
+                        mask_positions[i, j] = True
+                        break
+
+            # Apply mask
+            inputs[mask_positions] = mask_token_id
+            labels[~mask_positions] = -100  # Only keep masked token for loss calculation
+
+            # print('SAMPLE DB INPUT: ', tokenizer.decode(inputs[0]))
+            # print('SAMPLE DB LABEL: ', tokenizer.decode(labels[0]))
+
+            return inputs, labels
+
         
-    collator = CustomDataCollatorForLanguageModeling(tokenizer=tokenizer, mlm_probability=cfg.dataset.mlm_probability)
+    # collator = CustomDataCollatorForLanguageModeling(tokenizer=tokenizer, 
+    #                                                  mlm_probability=cfg.dataset.mlm_probability,
+    #                                                  prompt=cfg.prefix)
+
+    collator = CustomDataCollatorForFlanStyleQuestionAnswering(tokenizer=tokenizer,
+                                                                mlm_probability=cfg.dataset.mlm_probability,
+                                                                prompt=cfg.prefix)
         
     dataset = cast(Dataset, dataset)
     data_loader = DataLoader(
@@ -405,6 +499,7 @@ def build_model(cfg: DictConfig):
             gradient_checkpointing=cfg.get("gradient_checkpointing", None),
             recompute_metric_loss=cfg.get("recompute_metric_loss", False),
             disable_train_metrics=cfg.get("disable_train_metrics", False),
+            use_dora=cfg.get("use_dora", False),
         )
     else:
         raise ValueError(f"Not sure how to build model with name={cfg.name}")
@@ -586,6 +681,9 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
 
 
 if __name__ == "__main__":
+    om.register_new_resolver("format_lr", lambda lr: f"{lr:.2f}")
+    om.register_new_resolver("first_word", lambda text: text.split("_")[0] if text else "")
+    
     yaml_path, args_list = sys.argv[1], sys.argv[2:]
     with open("yamls/defaults.yaml") as f:
         default_cfg = om.load(f)

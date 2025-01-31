@@ -67,6 +67,7 @@ def create_vanilla_dataset(
     task_column_names: dict = _glue_task_column_names,
     tokenize_fn_factory: callable = None,
     add_prefix: bool = False,
+    prefix: str = "Choose the better response.",
 ):
     try:
         import datasets
@@ -100,9 +101,7 @@ def create_vanilla_dataset(
     if not isinstance(text_column_names, tuple):
         text_column_names = [text_column_names]
 
-    prefix = "The preferred completion is[SEP]"
-
-    def tokenize_fn_factory(tokenizer, max_seq_length):
+    def tokenize_fn_factory(tokenizer, max_seq_length,):
         def tokenizer_fn(inp):
             # print("chosen", inp[text_column_names[0]])
             # print("rejected", inp[text_column_names[1]])
@@ -471,7 +470,7 @@ def create_bert_style_classification_dataset(task: str,
         batched=True,
         # batched=False,
         num_proc=None if num_workers == 0 else num_workers,
-        batch_size=1000,
+        batch_size=100,
         remove_columns=columns_to_remove,
         load_from_cache_file=True,
     )
@@ -593,6 +592,119 @@ def create_tok_seq_hybrid_dataset(task: str,
     return dataset
 
 
+def create_preference_to_flan_style_dataset(task: str,
+    tokenizer_name: str,
+    split: str, # train, validation, test
+    dataset_name: str,
+    max_seq_length: int = 256,
+    max_retries: int = 10,
+    num_workers: int = 0,
+    dataset_subset: str = None,
+    task_column_names: dict = _glue_task_column_names,
+    tokenize_fn_factory: callable = None,
+    prefix: str = "Choose the better response.",
+    postfix: str = "Answer: ",
+):
+    try:
+        import datasets
+        import transformers
+    except ImportError as e:
+        raise MissingConditionalImportError(
+            extra_deps_group="nlp", conda_package="transformers"
+        ) from e
+
+    if task not in task_column_names:
+        raise ValueError(f"task ({task}) must be one of {task_column_names.keys()}")
+
+    if (max_seq_length % 8) != 0:
+        log.warning(
+            "For performance, a max_seq_length as a multiple of 8 is recommended."
+        )
+
+    tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_name)  # type: ignore (thirdparty)
+
+    log.info(f"Loading {task.upper()} on rank {dist.get_global_rank()}")
+    download_config = datasets.DownloadConfig(max_retries=max_retries)
+    dataset = datasets.load_dataset(
+        dataset_name,
+        dataset_subset if dataset_subset is not None else task, # COMMENT OUT IF PERSONAL DATASET DOES NOT HAVE SUBSET
+        split=split,
+        download_config=download_config,
+    )
+
+    log.info(f"Starting tokenization by preprocessing over {num_workers} threads!")
+    text_column_names = task_column_names[task]
+
+    def tokenize_fn_factory(tokenizer, max_seq_length):
+        tokenized_postfix = tokenizer(
+            text=postfix,
+            padding="max_length",
+            max_length=max_seq_length,
+            truncation=True,
+        )['input_ids'][1:]
+        len_tokenized_postfix = len(tokenized_postfix)
+
+        def tokenizer_fn(inp):
+            # flip a coin
+            coin = random.randint(0, 1)
+            # if coin == 0, then chosen goes first
+            choice_postfix = postfix + " " + str(coin)
+
+            if coin == 0:
+                pairs = [[prefix + " Choice 0: " + chosen, " Choice 1: " + rejected + choice_postfix] for chosen, rejected in zip(inp["chosen"], inp["rejected"])]
+            if coin == 1:
+                pairs = [[prefix + " Choice 0: " + rejected, " Choice 1: " + chosen + choice_postfix] for chosen, rejected in zip(inp["chosen"], inp["rejected"])]
+
+            tokenized_pairs = tokenizer(pairs,
+                                        max_length=max_seq_length, 
+                                        truncation=True)
+
+            # Always has an answer even if truncated
+            if len(tokenized_pairs["input_ids"]) == max_seq_length:
+                tokenized_pairs["input_ids"] = tokenized_pairs["input_ids"][:-(len_tokenized_postfix)] + tokenized_postfix
+
+            ret_dict = {
+                "input_ids": tokenized_pairs["input_ids"],
+                "token_type_ids": tokenized_pairs["token_type_ids"],
+                "attention_mask": tokenized_pairs["attention_mask"],
+            }
+
+            return ret_dict
+        
+        return tokenizer_fn
+    
+    columns_to_remove = [i for i in text_column_names if i is not None]
+
+    assert isinstance(dataset, datasets.Dataset)
+    dataset = dataset.map(
+        tokenize_fn_factory(tokenizer, max_seq_length),
+        batched=True,
+        # batched=False,
+        num_proc=None if num_workers == 0 else num_workers,
+        batch_size=1000,
+        remove_columns=columns_to_remove,
+        load_from_cache_file=True,
+    )
+
+    return dataset
+
+
+def create_rw_bench_reasoning_preference_to_flan_style_dataset(**kwargs):
+    return create_preference_to_flan_style_dataset(
+        **kwargs,
+        dataset_name="sarahpann/rwb_reasoning",
+        dataset_subset="",
+        task_column_names={"sarahpann/rwb_reasoning": ('chosen', 'rejected', 'og_dataset')}
+    )
+
+def create_reasoning_preference_to_flan_style_dataset(**kwargs):
+        return create_preference_to_flan_style_dataset(
+        **kwargs,
+        dataset_name="sarahpann/skywork_reasoning",
+        dataset_subset="",
+        task_column_names={"sarahpann/skywork_reasoning": ('chosen', 'rejected', 'og_dataset')}
+    )
+
 
 def create_glue_dataset(**kwargs):
     return create_eval_dataset(
@@ -707,12 +819,44 @@ def create_comparison_skywork_dataset(**kwargs):
         task_column_names={"sarahpann/processed_skywork": ('chosen', 'rejected')}
     )
 
+def create_comparison_reasoning_skywork_dataset(**kwargs):
+    return create_bert_style_classification_dataset(
+        **kwargs,
+        dataset_name="sarahpann/skywork_reasoning",
+        dataset_subset="",
+        task_column_names={"sarahpann/skywork_reasoning": ('chosen', 'rejected')}
+    )
+
+def create_comparison_codeuf_dataset(**kwargs):
+    return create_bert_style_classification_dataset(
+        **kwargs,
+        dataset_name="sarahpann/codeuf_simp",
+        dataset_subset="",
+        task_column_names={"sarahpann/codeuf_simp": ('chosen', 'rejected')}
+    )
+
+def create_comparison_mdpo_dataset(**kwargs):
+    return create_bert_style_classification_dataset(
+        **kwargs,
+        dataset_name="sarahpann/mdpo_simp",
+        dataset_subset="",
+        task_column_names={"sarahpann/mdpo_simp": ('chosen', 'rejected')}
+    )
+
 def create_comparison_reward_bench_dataset(**kwargs):
     return create_bert_style_classification_dataset(
         **kwargs,
         dataset_name="sarahpann/reward_bench_processed",
         dataset_subset="",
         task_column_names={"sarahpann/reward_bench_processed": ('chosen', 'rejected')}
+    )
+
+def create_comparison_reward_bench_reasoning_dataset(**kwargs):
+    return create_bert_style_classification_dataset(
+        **kwargs,
+        dataset_name="sarahpann/rwb_reasoning",
+        dataset_subset="",
+        task_column_names={"sarahpann/rwb_reasoning": ('chosen', 'rejected')}
     )
 
 def create_tok_seq_hybrid_skywork_dataset(**kwargs):

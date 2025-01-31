@@ -27,6 +27,10 @@ import bert_layers as bert_layers_module
 import src.bert_layers.configuration_bert as configuration_bert_module
 import transformers
 from transformers.modeling_outputs import MaskedLMOutput, ModelOutput
+
+import peft
+from peft import LoraConfig
+
 from composer.metrics.nlp import BinaryF1Score, LanguageCrossEntropy, MaskedAccuracy
 from composer.models.huggingface import HuggingFaceModel
 from composer.devices import DeviceCPU
@@ -194,9 +198,19 @@ def create_modern_bert_mlm(
     pretrained_checkpoint: Optional[str] = None,
     recompute_metric_loss: Optional[bool] = False,
     disable_train_metrics: Optional[bool] = False,
+    use_dora: Optional[bool] = False,
 ):
+
     model = transformers.AutoModelForMaskedLM.from_pretrained(pretrained_model_name, 
-                                                              config=model_config)
+                                                          config=model_config)
+
+    if use_dora:
+        linear_layers = ["wqkv", "Wi", "Wo", "dense", "decoder"]
+
+        dora_config = LoraConfig(use_dora=True, target_modules=linear_layers)
+
+        model = peft.get_peft_model(model, dora_config)
+
     tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_name)
 
     def forward(
@@ -218,7 +232,7 @@ def create_modern_bert_mlm(
     ) -> Union[Tuple[torch.Tensor], MaskedLMOutput]:
         
         label_copy = labels.clone()
-        label_copy[:, 2:] = -100
+        # label_copy[:, 2:] = -100
 
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
         self._maybe_set_compile()

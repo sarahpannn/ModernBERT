@@ -12,6 +12,8 @@ sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 
 import torch
 
+import datasets
+
 import src.evals.data as data_module
 import src.hf_bert as hf_bert_module
 import src.mosaic_bert as mosaic_bert_module
@@ -205,20 +207,50 @@ def build_my_dataloader(cfg: DictConfig, device_batch_size: int, is_eval=False):
     # print('RANDOM SAMPLE: ', dataset[0])
 
     if is_eval:
-        dataset = data_module.create_comparison_reward_bench_dataset(
-            task="sarahpann/reward_bench_processed",
+        # dataset = data_module.create_comparison_reward_bench_dataset(
+        #     task="sarahpann/reward_bench_processed",
+        #     split=cfg.split,
+        #     tokenizer_name=cfg.tokenizer_name,
+        #     max_seq_length=cfg.max_seq_len,
+        # )
+        dataset = data_module.create_comparison_reward_bench_reasoning_dataset(
+            task="sarahpann/rwb_reasoning",
             split=cfg.split,
             tokenizer_name=cfg.tokenizer_name,
             max_seq_length=cfg.max_seq_len,
         )
 
     else:
-        dataset = data_module.create_comparison_skywork_dataset(
-            task="sarahpann/processed_skywork",
+        # dataset = data_module.create_comparison_skywork_dataset(
+        #     task="sarahpann/processed_skywork",
+        #     split=cfg.split,
+        #     tokenizer_name=cfg.tokenizer_name,
+        #     max_seq_length=cfg.max_seq_len,
+        # )
+
+        code_uf = data_module.create_comparison_codeuf_dataset(
+            task="sarahpann/codeuf_simp",
             split=cfg.split,
             tokenizer_name=cfg.tokenizer_name,
             max_seq_length=cfg.max_seq_len,
         )
+
+        mdpo = data_module.create_comparison_mdpo_dataset(
+            task="sarahpann/mdpo_simp",
+            split=cfg.split,
+            tokenizer_name=cfg.tokenizer_name,
+            max_seq_length=cfg.max_seq_len,
+
+        )
+
+        skywork_reasoning = data_module.create_comparison_reasoning_skywork_dataset(
+            task="sarahpann/skywork_reasoning",
+            split=cfg.split,
+            tokenizer_name=cfg.tokenizer_name,
+            max_seq_length=cfg.max_seq_len,
+        )
+
+        dataset = datasets.concatenate_datasets([code_uf, mdpo, skywork_reasoning])
 
     class CustomDataCollator(transformers.DefaultDataCollator):
         def __init__(self):
@@ -298,6 +330,36 @@ def train(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) 
     print("Initializing model...")
     model = build_model(cfg.model)
 
+    if cfg.model.freeze:
+        frozen_layers = ["model.embeddings.tok_embeddings.weight", 
+                         "model.embeddings.norm.weight",
+                         "model.layers.0.attn.Wqkv.weight",
+                         "model.layers.0.attn.Wo.weight",
+                         "model.layers.0.mlp_norm.weight",
+                         "model.layers.0.mlp.Wi.weight",
+                         "model.layers.0.mlp.Wo.weight",]
+        for i in range(cfg.model.freeze_layers):
+            to_freeze = [
+                f"model.layers.{i}.attn.Wqkv.weight",
+                f"model.layers.{i}.attn.Wo.weight",
+                f"model.layers.{i}.mlp_norm.weight",
+                f"model.layers.{i}.mlp.Wi.weight",
+                f"model.layers.{i}.mlp.Wo.weight",
+            ]
+            frozen_layers.extend(to_freeze)
+
+        if cfg.model.freeze_layers == 27:
+            frozen_layers.extend(["model.final_norm.weight",
+                                  "head.dense.weight",
+                                  "head.norm.weight"])
+            
+        for name, param in model.model.named_parameters():
+            # print(name)
+            if name in frozen_layers:
+                param.requires_grad = False
+
+    print("Number of trainable parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
+    
     print("Model max sequence length: ", model.config.max_position_embeddings)
 
     # model.model.save_pretrained("/home/public/span/MATH_DPO/modern_bert_test/bert24/checkpoints")

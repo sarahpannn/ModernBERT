@@ -1,3 +1,0 @@
-checkpoint_run_name: "experiment_001"          # Name of the run/checkpoint you want to load
-checkpoint_cfg: "yamls/main/bert24-base-v2.yaml" # Path to the pretrained configuration file (YAML or JSON)
-checkpoint_load_path: "ep1-ba21195-rank0.pt"   # Base path where the checkpoint files are stored

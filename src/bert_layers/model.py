@@ -1383,8 +1383,8 @@ class FlexBertForSequenceClassification(FlexBertPreTrainedModel):
         pooled_output = self.head(output)
         logits = self.classifier(pooled_output)
 
-        print("LOGITS DTYPE ", logits.dtype)
-        print("LABELS DTYPE ", labels.dtype)
+        # print("LOGITS DTYPE ", logits.dtype)
+        # print("LABELS DTYPE ", labels.dtype)
 
         loss = None
         if labels is not None:

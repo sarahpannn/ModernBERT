@@ -7,16 +7,24 @@ metric:
 method: bayes
 parameters:
   optimizer.lr:
-    min: !!float 1e-5
-    max: !!float 2e-4
-  model.model_config.hidden_dropout_prob:
-    min: !!float 0.0
-    max: !!float 0.85
-  mlm_probability:
-    min: !!float 0.0
-    max: !!float 0.5
+    min: !!float 1e-7
+    max: !!float 1e-4
+  # model.model_config.hidden_dropout_prob:
+  #   min: !!float 0.0
+  #   max: !!float 0.85
+  # mlm_probability:
+  #   min: !!float 0.0
+  #   max: !!float 0.5
   add_prefix: 
-      value: true
+    value: true
+  prefix:
+    values: ["Determine which response is the best choice based on mathematical or programming accuracy. ",
+            "Select the best response. ",
+            "Which response is more correct? ",]
+  model.freeze_layers:
+    min: !!int 0
+    max: !!int 27
+  
 
 command:
 # - ${env}

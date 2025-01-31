@@ -21,8 +21,9 @@ model:
   pretrained_model_name: answerdotai/ModernBERT-large
   tokenizer_name: ${tokenizer_name}
   pretrained_checkpoint: answerdotai/ModernBERT-large
-  # freeze: true
-  # freeze_layers: 0 # valid are 0 through 27
+  freeze: true
+  freeze_layers: 12 # valid are 0 through 27
+  use_dora: true
 
   model_config:
     attention_bias: false
@@ -68,8 +69,8 @@ model:
     sliding_window: 128
     loss_function: fa_cross_entropy
 
-# add_prefix: true
-# prefix: "Determine which response is the best choice based on mathematical or programming accuracy. " # TODO: Change
+add_prefix: true
+prefix: "Which response is more correct? " # TODO: Change
 freeze: true
 
 # Dataloaders
@@ -119,7 +120,7 @@ scheduler:
 
 optimizer:
   name: decoupled_adamw
-  # lr: 1e-4
+  lr: 5e-6
   betas:
   - 0.9
   - 0.98
