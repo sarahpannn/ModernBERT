@@ -205,7 +205,7 @@ def create_modern_bert_mlm(
                                                           config=model_config)
 
     if use_dora:
-        linear_layers = ["wqkv", "Wi", "Wo", "dense", "decoder"]
+        linear_layers = ["Wqkv", "Wi", "Wo", "dense", "decoder"]
 
         dora_config = LoraConfig(use_dora=True, target_modules=linear_layers)
 
@@ -246,6 +246,19 @@ def create_modern_bert_mlm(
         #             input_ids, indices, cu_seqlens, max_seqlen, position_ids, labels = _unpad_modernbert_input(
         #                 inputs=input_ids, attention_mask=attention_mask, position_ids=position_ids, labels=labels
         #             )
+
+        if use_dora:
+            outputs = self.model(
+                input_ids,
+                attention_mask=attention_mask,
+                return_dict=return_dict,
+            )
+            return MaskedLMOutput(
+                loss=outputs.loss,
+                logits=outputs.logits,
+                hidden_states=outputs.hidden_states,
+                labels=label_copy,
+            )
 
         outputs = self.model(
             input_ids,
