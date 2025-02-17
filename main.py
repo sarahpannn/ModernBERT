@@ -29,6 +29,8 @@ from src.bert_layers.model import init_mlm_model_from_pretrained
 import peft
 from peft import LoraConfig
 
+import datasets
+
 # Add folder root to path to allow us to use relative imports regardless of what directory the script is run from
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 
@@ -274,31 +276,119 @@ def build_dataloader(
     device_microbatch_size: int | None = None,
     eval_mode=False,
 ):
-    if not eval_mode:
-        dataset = data_module.create_reasoning_preference_to_flan_style_dataset(
-            task="sarahpann/skywork_reasoning",
-            split=cfg.split,
-            tokenizer_name=cfg.tokenizer_name,
-            max_seq_length=cfg.max_seq_len,
-            prefix=cfg.prefix,
-        )
+    if cfg.subset == "reasoning":
+        if not eval_mode:
+            dataset = data_module.create_reasoning_preference_to_flan_style_dataset(
+                task="sarahpann/skywork_reasoning",
+                split=cfg.split,
+                tokenizer_name=cfg.tokenizer_name,
+                max_seq_length=cfg.max_seq_len,
+                prefix=cfg.prefix,
+            )
 
-    else:
-        # dataset = data_module.create_vanilla_mlm_cls_rewardbench_dataset(
-        #     task="sarahpann/mlm_cls_rewardbench",
-        #     split=cfg.split,
-        #     tokenizer_name=cfg.tokenizer_name,
-        #     max_seq_length=cfg.max_seq_len,
-        #     add_prefix=cfg.add_prefix,
-        # )
+        else:
+            dataset = data_module.create_rw_bench_reasoning_preference_to_flan_style_dataset(
+                task="sarahpann/rwb_reasoning",
+                split=cfg.split,
+                tokenizer_name=cfg.tokenizer_name,
+                max_seq_length=cfg.max_seq_len,
+                prefix=cfg.prefix,
+            )
 
-        dataset = data_module.create_rw_bench_reasoning_preference_to_flan_style_dataset(
-            task="sarahpann/rwb_reasoning",
-            split=cfg.split,
-            tokenizer_name=cfg.tokenizer_name,
-            max_seq_length=cfg.max_seq_len,
-            prefix=cfg.prefix,
-        )
+    elif cfg.subset == "safety":
+        if not eval_mode:
+            dataset0 = data_module.create_preference_to_flan_style_dataset(
+                task="sarahpann/PKU_SafeRLHF_simp",
+                split=cfg.split,
+                tokenizer_name=cfg.tokenizer_name,
+                max_seq_length=cfg.max_seq_len,
+                prefix=cfg.prefix,
+
+                dataset_name="sarahpann/PKU_SafeRLHF_simp",
+                dataset_subset="",
+                task_column_names={"sarahpann/PKU_SafeRLHF_simp": ('chosen', 'rejected')}
+            )
+
+            dataset1 = data_module.create_preference_to_flan_style_dataset(
+                task="sarahpann/skywork_safety",
+                split=cfg.split,
+                tokenizer_name=cfg.tokenizer_name,
+                max_seq_length=cfg.max_seq_len,
+                prefix=cfg.prefix,
+
+                dataset_name="sarahpann/skywork_safety",
+                dataset_subset="",
+                task_column_names={"sarahpann/skywork_safety": ('chosen', 'rejected', 'og_dataset')}
+            )
+
+            dataset = datasets.concatenate_datasets([dataset0, dataset1])
+        
+        else:
+            dataset = data_module.create_preference_to_flan_style_dataset(
+                task="sarahpann/rwb_safety",
+                split=cfg.split,
+                tokenizer_name=cfg.tokenizer_name,
+                max_seq_length=cfg.max_seq_len,
+                prefix=cfg.prefix,
+
+                dataset_name="sarahpann/rwb_safety",
+                dataset_subset="",
+                task_column_names={"sarahpann/rwb_safety": ('chosen', 'rejected', 'og_dataset')}
+            )
+
+    elif cfg.subset == "chat":
+        if not eval_mode:
+            dataset0 = data_module.create_preference_to_flan_style_dataset(
+                task="sarahpann/skywork_chat",
+                split=cfg.split,
+                tokenizer_name=cfg.tokenizer_name,
+                max_seq_length=cfg.max_seq_len,
+                prefix=cfg.prefix,
+
+                dataset_name="sarahpann/skywork_chat",
+                dataset_subset="",
+                task_column_names={"sarahpann/skywork_chat": ('chosen', 'rejected', 'og_dataset')}
+            )
+
+            dataset1 = data_module.create_preference_to_flan_style_dataset(
+                task="sarahpann/webgpt_comparisons_simp",
+                split=cfg.split,
+                tokenizer_name=cfg.tokenizer_name,
+                max_seq_length=cfg.max_seq_len,
+                prefix=cfg.prefix,
+
+                dataset_name="sarahpann/webgpt_comparisons_simp",
+                dataset_subset="",
+                task_column_names={"sarahpann/webgpt_comparisons_simp": ('chosen', 'rejected')}
+            )
+
+            dataset2 = data_module.create_preference_to_flan_style_dataset(
+                task="sarahpann/simp_hhrlhf",
+                split=cfg.split,
+                tokenizer_name=cfg.tokenizer_name,
+                max_seq_length=cfg.max_seq_len,
+                prefix=cfg.prefix,
+
+                dataset_name="sarahpann/simp_hhrlhf",
+                dataset_subset="",
+                task_column_names={"sarahpann/simp_hhrlhf": ('chosen', 'rejected')}
+            )
+
+            dataset = datasets.concatenate_datasets([dataset0, dataset1, dataset2])
+
+        else:
+            dataset = data_module.create_preference_to_flan_style_dataset(
+                task="sarahpann/rwb_chat",
+                split=cfg.split,
+                tokenizer_name=cfg.tokenizer_name,
+                max_seq_length=cfg.max_seq_len,
+                prefix=cfg.prefix,
+
+                dataset_name="sarahpann/rwb_chat",
+                dataset_subset="",
+                task_column_names={"sarahpann/rwb_chat": ('chosen', 'rejected', 'og_dataset')}
+            )
+
 
     class CustomDataCollatorForLanguageModeling(transformers.DataCollatorForLanguageModeling):
         # same init function, but add length of prefix to the class

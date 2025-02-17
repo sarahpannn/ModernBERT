@@ -24,6 +24,9 @@ parameters:
   model.freeze_layers:
     min: !!int 0
     max: !!int 27
+
+  subset:
+    value: "reasoning"
   
 
 command:
