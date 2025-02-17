@@ -1,0 +1,47 @@
+# <---- wandb stuff ---->
+program: main.py
+metric:
+  name: metrics/eval/MaskedAccuracy
+  goal: maximize
+
+method: bayes
+parameters:
+  optimizer.lr:
+    min: !!float 1e-7
+    max: !!float 1e-4
+  # model.model_config.hidden_dropout_prob:
+  #   min: !!float 0.0
+  #   max: !!float 0.85
+  # mlm_probability:
+  #   min: !!float 0.0
+  #   max: !!float 0.5
+  add_prefix: 
+    value: true
+  prefix:
+    values: ["Determine which response is the best choice based on mathematical or programming accuracy. ",
+            # "Select the best response. ",
+            "Which response is more correct? ",]
+  model.freeze_layers:
+    min: !!int 0
+    max: !!int 27
+
+  subset:
+    value: "reasoning"
+
+  model.dora:
+    value: true
+
+  model.r_dim:
+    values: [8, 16, 32, 64, 128]
+  
+
+command:
+# - ${env}
+# - ${interpreter}
+- composer
+- ${program}
+- /home/public/span/MATH_DPO/modern_bert_test/bert24/yamls/main/flex-bert-base-sarah.yaml
+- ${args_no_hyphens}
+# <!---- wandb stuff ---->
+
+# wandb agent sarahpan888/tinyrm_hparam_sweet/63va6ye9
