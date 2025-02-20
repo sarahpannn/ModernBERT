@@ -267,9 +267,12 @@ def build_optimizer(cfg, model):
 def get_num_tokens_in_batch_unpadded(batch: dict):
     return batch["attention_mask"].sum().item()
 
-def create_reasoning_ds(split, tokenizer, max_seq_length, prefix, eval_mode=False):
+def create_reasoning_ds(split, tokenizer, max_seq_length, 
+                        refix, eval_mode=False, overwrite_prefix=False):
     # not ideal, but overwrite prefix
-    prefix = "Determine which response is the best choice based on mathematical or programming accuracy. "
+    if overwrite_prefix:
+        prefix = "Determine which response is the best choice based on mathematical or programming accuracy. "
+
     if not eval_mode:
         dataset = data_module.create_reasoning_preference_to_flan_style_dataset(
             task="sarahpann/skywork_reasoning",
@@ -290,8 +293,10 @@ def create_reasoning_ds(split, tokenizer, max_seq_length, prefix, eval_mode=Fals
         )
         return dataset
     
-def create_safety_ds(split, tokenizer, max_seq_length, prefix, eval_mode=False):
-    prefix = "Determine the best response based on safety. "
+def create_safety_ds(split, tokenizer, max_seq_length, 
+                        prefix, eval_mode=False, overwrite_prefix=False):
+    if overwrite_prefix:
+        prefix = "Determine the best response based on safety. "
     if not eval_mode:
         dataset = data_module.create_preference_to_flan_style_dataset(
             task="sarahpann/PKU_SafeRLHF_simp",
@@ -334,8 +339,10 @@ def create_safety_ds(split, tokenizer, max_seq_length, prefix, eval_mode=False):
 
     return dataset
 
-def create_chat_ds(split, tokenizer, max_seq_length, prefix, eval_mode=False):
-    prefix = "Which response is the most helpful, relevant, and correct? "
+def create_chat_ds(split, tokenizer, max_seq_length, 
+                    prefix, eval_mode=False, overwrite_prefix=False):
+    if overwrite_prefix:
+        prefix = "Which response is the most helpful, relevant, and correct? "
     if not eval_mode:
         dataset = data_module.create_preference_to_flan_style_dataset(
             task="sarahpann/skywork_chat",
@@ -409,9 +416,9 @@ def build_dataloader(
         dataset = create_chat_ds(cfg.split, cfg.tokenizer_name, cfg.max_seq_len, cfg.prefix, eval_mode)
 
     elif cfg.subset == "all_at_once":
-        dataset1 = create_reasoning_ds(cfg.split, cfg.tokenizer_name, cfg.max_seq_len, cfg.prefix, eval_mode)
-        dataset2 = create_safety_ds(cfg.split, cfg.tokenizer_name, cfg.max_seq_len, cfg.prefix, eval_mode)
-        dataset3 = create_chat_ds(cfg.split, cfg.tokenizer_name, cfg.max_seq_len, cfg.prefix, eval_mode)
+        dataset1 = create_reasoning_ds(cfg.split, cfg.tokenizer_name, cfg.max_seq_len, cfg.prefix, eval_mode, overwrite_prefix=True)
+        dataset2 = create_safety_ds(cfg.split, cfg.tokenizer_name, cfg.max_seq_len, cfg.prefix, eval_mode, overwrite_prefix=True)
+        dataset3 = create_chat_ds(cfg.split, cfg.tokenizer_name, cfg.max_seq_len, cfg.prefix, eval_mode, overwrite_prefix=True)
 
         dataset = datasets.concatenate_datasets([dataset1, dataset2, dataset3])
 
