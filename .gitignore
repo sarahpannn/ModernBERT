@@ -173,3 +173,4 @@ checkpoints/
 data/
 opt/
 **.pt
+skypilot.yaml
