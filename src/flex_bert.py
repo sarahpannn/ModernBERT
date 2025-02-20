@@ -190,6 +190,43 @@ class MaskedLMOutput(ModelOutput):
     seq_len: Optional[int] = None
     labels: Optional[torch.LongTensor] = None
 
+
+def create_modern_bert_mixed_mlm(
+    pretrained_model_name: str = "answerdotai/ModernBert-large",
+    checkpoint_dict: dict = None,
+    model_config: Optional[dict] = None,
+    tokenizer_name: Optional[str] = None,
+    gradient_checkpointing: Optional[bool] = False,
+    pretrained_checkpoint: Optional[str] = None,
+    recompute_metric_loss: Optional[bool] = False,
+    disable_train_metrics: Optional[bool] = False,
+    use_dora: Optional[bool] = False,
+):
+    from transformers import AutoModelForMaskedLM
+    from collections import OrderedDict
+
+    base_model = AutoModelForMaskedLM.from_pretrained(pretrained_model_name,
+                                                        config=model_config)
+    
+    new_state_dict = base_model.model.state_dict().copy()
+
+    for param in new_state_dict:
+        new_weight = torch.zeros_like(new_state_dict[param])
+        new_state_dict[param] = new_weight
+
+    for key in checkpoint_dict:
+        model = AutoModelForMaskedLM.from_pretrained(checkpoint_dict[key],
+                                                     config=model_config)
+        state_dict = model.model.state_dict()
+        for param in state_dict:
+            new_state_dict[param] += state_dict[param] / len(checkpoint_dict)
+    
+
+    base_model.load_state_dict(new_state_dict)
+
+    return base_model
+
+
 def create_modern_bert_mlm(
     pretrained_model_name: str = "answerdotai/ModernBERT-large",
     model_config: Optional[dict] = None,
@@ -199,10 +236,24 @@ def create_modern_bert_mlm(
     recompute_metric_loss: Optional[bool] = False,
     disable_train_metrics: Optional[bool] = False,
     use_dora: Optional[bool] = False,
+    mixed_mlm: Optional[bool] = False,
+    checkpoint_dict: Optional[dict] = None,
 ):
 
     model = transformers.AutoModelForMaskedLM.from_pretrained(pretrained_model_name, 
                                                           config=model_config)
+    
+    if mixed_mlm:
+        model = create_modern_bert_mixed_mlm(pretrained_model_name=pretrained_model_name,
+                                     checkpoint_dict=checkpoint_dict,
+                                     model_config=model_config,
+                                     tokenizer_name=tokenizer_name,
+                                     gradient_checkpointing=gradient_checkpointing,
+                                     pretrained_checkpoint=pretrained_checkpoint,
+                                     recompute_metric_loss=recompute_metric_loss,
+                                     disable_train_metrics=disable_train_metrics,
+                                     use_dora=use_dora)
+        
 
     if use_dora:
         linear_layers = ["Wqkv", "Wi", "Wo", "dense", "decoder"]
