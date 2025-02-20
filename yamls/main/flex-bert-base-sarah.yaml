@@ -68,7 +68,7 @@ model:
     sliding_window: 128
     loss_function: fa_cross_entropy
 
-# add_prefix: true
+add_prefix: true
 # prefix: "Determine which response is the best choice based on mathematical or programming accuracy. " # TODO: Change
 freeze: true
 

@@ -241,9 +241,14 @@ def create_modern_bert_mlm(
 ):
 
     model = transformers.AutoModelForMaskedLM.from_pretrained(pretrained_model_name, 
-                                                          config=model_config)
+                                                          config=model_config,
+                                                          attn_implementation='flash_attention_2')
+    
+    
+    # print(model.model.state_dict())
     
     if mixed_mlm:
+        print("MIXING MLMS")
         model = create_modern_bert_mixed_mlm(pretrained_model_name=pretrained_model_name,
                                      checkpoint_dict=checkpoint_dict,
                                      model_config=model_config,
@@ -256,6 +261,7 @@ def create_modern_bert_mlm(
         
 
     if use_dora:
+        print("ADDING DORA ADAPTORS")
         linear_layers = ["Wqkv", "Wi", "Wo", "dense", "decoder"]
 
         dora_config = LoraConfig(use_dora=True, target_modules=linear_layers)
@@ -311,7 +317,9 @@ def create_modern_bert_mlm(
                 labels=label_copy,
             )
 
-        print("INPUT_IDS :", input_ids)
+        # assert if any of them are inf
+        assert not torch.isinf(input_ids).any()
+        assert not torch.isinf(attention_mask).any()
 
         outputs = self.model(
             input_ids,
@@ -328,8 +336,6 @@ def create_modern_bert_mlm(
             return_dict=return_dict,
         )
         last_hidden_state = outputs[0]
-
-        print("OUTPUTS :", outputs)
 
         if self.sparse_prediction and labels is not None:
             # flatten labels and output first
@@ -349,7 +355,7 @@ def create_modern_bert_mlm(
             else self.decoder(self.head(last_hidden_state))
         )
 
-        print("LOGITS :", logits)
+        # logits = outputs.logits
 
         loss = None
         if labels is not None:
