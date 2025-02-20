@@ -1,0 +1,36 @@
+# <---- wandb stuff ---->
+program: sequence_classification.py
+metric:
+  name: metrics/eval/MulticlassAccuracy
+  goal: maximize
+
+method: bayes
+parameters:
+  optimizer.lr:
+    min: !!float 1e-5
+    max: !!float 5e-4
+  # model.model_config.hidden_dropout_prob:
+  #   min: !!float 0.0
+  #   max: !!float 0.85
+  model.freeze_layers:
+    min: !!int 0
+    max: !!int 27
+  model.use_dora:
+    values: [true, false]
+
+  subset:
+    value: "all_at_once"
+
+
+command:
+# - ${env}
+# - ${interpreter}
+- composer
+- ${program}
+- /home/public/span/MATH_DPO/modern_bert_test/bert24/yamls/test/sequence_classification_og.yaml
+- ${args_no_hyphens}
+# <!---- wandb stuff ---->
+
+# wandb agent sarahpan888/tinyrm_hparam_sweet/63va6ye9
+
+# wandb agent sarahpan888/cls_sweep_with_freezing/unerbasd
