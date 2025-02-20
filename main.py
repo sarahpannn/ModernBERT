@@ -268,6 +268,8 @@ def get_num_tokens_in_batch_unpadded(batch: dict):
     return batch["attention_mask"].sum().item()
 
 def create_reasoning_ds(split, tokenizer, max_seq_length, prefix, eval_mode=False):
+    # not ideal, but overwrite prefix
+    prefix = "Determine which response is the best choice based on mathematical or programming accuracy. "
     if not eval_mode:
         dataset = data_module.create_reasoning_preference_to_flan_style_dataset(
             task="sarahpann/skywork_reasoning",
@@ -289,6 +291,7 @@ def create_reasoning_ds(split, tokenizer, max_seq_length, prefix, eval_mode=Fals
         return dataset
     
 def create_safety_ds(split, tokenizer, max_seq_length, prefix, eval_mode=False):
+    prefix = "Determine the best response based on safety. "
     if not eval_mode:
         dataset = data_module.create_preference_to_flan_style_dataset(
             task="sarahpann/PKU_SafeRLHF_simp",
@@ -332,6 +335,7 @@ def create_safety_ds(split, tokenizer, max_seq_length, prefix, eval_mode=False):
     return dataset
 
 def create_chat_ds(split, tokenizer, max_seq_length, prefix, eval_mode=False):
+    prefix = "Which response is the most helpful, relevant, and correct? "
     if not eval_mode:
         dataset = data_module.create_preference_to_flan_style_dataset(
             task="sarahpann/skywork_chat",

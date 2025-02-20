@@ -12,6 +12,9 @@ parameters:
   # model.model_config.hidden_dropout_prob:
   #   min: !!float 0.0
   #   max: !!float 0.85
+  prefix:
+    value: "" # real prefixes are hardcoded in main
+
   model.freeze_layers:
     min: !!int 0
     max: !!int 27
