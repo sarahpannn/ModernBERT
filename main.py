@@ -267,6 +267,125 @@ def build_optimizer(cfg, model):
 def get_num_tokens_in_batch_unpadded(batch: dict):
     return batch["attention_mask"].sum().item()
 
+def create_reasoning_ds(split, tokenizer, max_seq_length, prefix, eval_mode=False):
+    if not eval_mode:
+        dataset = data_module.create_reasoning_preference_to_flan_style_dataset(
+            task="sarahpann/skywork_reasoning",
+            split=split,
+            tokenizer_name=tokenizer,
+            max_seq_length=max_seq_length,
+            prefix=prefix,
+        )
+        return dataset
+
+    else:
+        dataset = data_module.create_rw_bench_reasoning_preference_to_flan_style_dataset(
+            task="sarahpann/rwb_reasoning",
+            split=split,
+            tokenizer_name=tokenizer,
+            max_seq_length=max_seq_length,
+            prefix=prefix,
+        )
+        return dataset
+    
+def create_safety_ds(split, tokenizer, max_seq_length, prefix, eval_mode=False):
+    if not eval_mode:
+        dataset = data_module.create_preference_to_flan_style_dataset(
+            task="sarahpann/PKU_SafeRLHF_simp",
+            split=split,
+            tokenizer_name=tokenizer,
+            max_seq_length=max_seq_length,
+            prefix=prefix,
+
+            dataset_name="sarahpann/PKU_SafeRLHF_simp",
+            dataset_subset="",
+            task_column_names={"sarahpann/PKU_SafeRLHF_simp": ('chosen', 'rejected')}
+        )
+
+        dataset1 = data_module.create_preference_to_flan_style_dataset(
+            task="sarahpann/skywork_safety",
+            split=split,
+            tokenizer_name=tokenizer,
+            max_seq_length=max_seq_length,
+            prefix=prefix,
+
+            dataset_name="sarahpann/skywork_safety",
+            dataset_subset="",
+            task_column_names={"sarahpann/skywork_safety": ('chosen', 'rejected', 'og_dataset')}
+        )
+
+        dataset = datasets.concatenate_datasets([dataset, dataset1])
+    
+    else:
+        dataset = data_module.create_preference_to_flan_style_dataset(
+            task="sarahpann/rwb_safety",
+            split=split,
+            tokenizer_name=tokenizer,
+            max_seq_length=max_seq_length,
+            prefix=prefix,
+
+            dataset_name="sarahpann/rwb_safety",
+            dataset_subset="",
+            task_column_names={"sarahpann/rwb_safety": ('chosen', 'rejected', 'og_dataset')}
+        )
+
+    return dataset
+
+def create_chat_ds(split, tokenizer, max_seq_length, prefix, eval_mode=False):
+    if not eval_mode:
+        dataset = data_module.create_preference_to_flan_style_dataset(
+            task="sarahpann/skywork_chat",
+            split=split,
+            tokenizer_name=tokenizer,
+            max_seq_length=max_seq_length,
+            prefix=prefix,
+
+            dataset_name="sarahpann/skywork_chat",
+            dataset_subset="",
+            task_column_names={"sarahpann/skywork_chat": ('chosen', 'rejected', 'og_dataset')}
+        )
+
+        dataset1 = data_module.create_preference_to_flan_style_dataset(
+            task="sarahpann/webgpt_comparisons_simp",
+            split=split,
+            tokenizer_name=tokenizer,
+            max_seq_length=max_seq_length,
+            prefix=prefix,
+
+            dataset_name="sarahpann/webgpt_comparisons_simp",
+            dataset_subset="",
+            task_column_names={"sarahpann/webgpt_comparisons_simp": ('chosen', 'rejected')}
+        )
+
+        dataset2 = data_module.create_preference_to_flan_style_dataset(
+            task="sarahpann/simp_hhrlhf",
+            split=split,
+            tokenizer_name=tokenizer,
+            max_seq_length=max_seq_length,
+            prefix=prefix,
+
+            dataset_name="sarahpann/simp_hhrlhf",
+            dataset_subset="",
+            task_column_names={"sarahpann/simp_hhrlhf": ('chosen', 'rejected')}
+        )
+
+        dataset = datasets.concatenate_datasets([dataset, dataset1, dataset2])
+
+    else:
+        dataset = data_module.create_preference_to_flan_style_dataset(
+            task="sarahpann/rwb_chat",
+            split=split,
+            tokenizer_name=tokenizer,
+            max_seq_length=max_seq_length,
+            prefix=prefix,
+
+            dataset_name="sarahpann/rwb_chat",
+            dataset_subset="",
+            task_column_names={"sarahpann/rwb_chat": ('chosen', 'rejected', 'og_dataset')}
+        )
+
+    return dataset
+
 
 def build_dataloader(
     cfg,
@@ -277,117 +396,20 @@ def build_dataloader(
     eval_mode=False,
 ):
     if cfg.subset == "reasoning":
-        if not eval_mode:
-            dataset = data_module.create_reasoning_preference_to_flan_style_dataset(
-                task="sarahpann/skywork_reasoning",
-                split=cfg.split,
-                tokenizer_name=cfg.tokenizer_name,
-                max_seq_length=cfg.max_seq_len,
-                prefix=cfg.prefix,
-            )
-
-        else:
-            dataset = data_module.create_rw_bench_reasoning_preference_to_flan_style_dataset(
-                task="sarahpann/rwb_reasoning",
-                split=cfg.split,
-                tokenizer_name=cfg.tokenizer_name,
-                max_seq_length=cfg.max_seq_len,
-                prefix=cfg.prefix,
-            )
+        dataset = create_reasoning_ds(cfg.split, cfg.tokenizer_name, cfg.max_seq_len, cfg.prefix, eval_mode)
 
     elif cfg.subset == "safety":
-        if not eval_mode:
-            dataset0 = data_module.create_preference_to_flan_style_dataset(
-                task="sarahpann/PKU_SafeRLHF_simp",
-                split=cfg.split,
-                tokenizer_name=cfg.tokenizer_name,
-                max_seq_length=cfg.max_seq_len,
-                prefix=cfg.prefix,
-
-                dataset_name="sarahpann/PKU_SafeRLHF_simp",
-                dataset_subset="",
-                task_column_names={"sarahpann/PKU_SafeRLHF_simp": ('chosen', 'rejected')}
-            )
-
-            dataset1 = data_module.create_preference_to_flan_style_dataset(
-                task="sarahpann/skywork_safety",
-                split=cfg.split,
-                tokenizer_name=cfg.tokenizer_name,
-                max_seq_length=cfg.max_seq_len,
-                prefix=cfg.prefix,
-
-                dataset_name="sarahpann/skywork_safety",
-                dataset_subset="",
-                task_column_names={"sarahpann/skywork_safety": ('chosen', 'rejected', 'og_dataset')}
-            )
-
-            dataset = datasets.concatenate_datasets([dataset0, dataset1])
-        
-        else:
-            dataset = data_module.create_preference_to_flan_style_dataset(
-                task="sarahpann/rwb_safety",
-                split=cfg.split,
-                tokenizer_name=cfg.tokenizer_name,
-                max_seq_length=cfg.max_seq_len,
-                prefix=cfg.prefix,
-
-                dataset_name="sarahpann/rwb_safety",
-                dataset_subset="",
-                task_column_names={"sarahpann/rwb_safety": ('chosen', 'rejected', 'og_dataset')}
-            )
+        dataset = create_safety_ds(cfg.split, cfg.tokenizer_name, cfg.max_seq_len, cfg.prefix, eval_mode)
 
     elif cfg.subset == "chat":
-        if not eval_mode:
-            dataset0 = data_module.create_preference_to_flan_style_dataset(
-                task="sarahpann/skywork_chat",
-                split=cfg.split,
-                tokenizer_name=cfg.tokenizer_name,
-                max_seq_length=cfg.max_seq_len,
-                prefix=cfg.prefix,
+        dataset = create_chat_ds(cfg.split, cfg.tokenizer_name, cfg.max_seq_len, cfg.prefix, eval_mode)
 
-                dataset_name="sarahpann/skywork_chat",
-                dataset_subset="",
-                task_column_names={"sarahpann/skywork_chat": ('chosen', 'rejected', 'og_dataset')}
-            )
+    elif cfg.subset == "all_at_once":
+        dataset1 = create_reasoning_ds(cfg.split, cfg.tokenizer_name, cfg.max_seq_len, cfg.prefix, eval_mode)
+        dataset2 = create_safety_ds(cfg.split, cfg.tokenizer_name, cfg.max_seq_len, cfg.prefix, eval_mode)
+        dataset3 = create_chat_ds(cfg.split, cfg.tokenizer_name, cfg.max_seq_len, cfg.prefix, eval_mode)
 
-            dataset1 = data_module.create_preference_to_flan_style_dataset(
-                task="sarahpann/webgpt_comparisons_simp",
-                split=cfg.split,
-                tokenizer_name=cfg.tokenizer_name,
-                max_seq_length=cfg.max_seq_len,
-                prefix=cfg.prefix,
-
-                dataset_name="sarahpann/webgpt_comparisons_simp",
-                dataset_subset="",
-                task_column_names={"sarahpann/webgpt_comparisons_simp": ('chosen', 'rejected')}
-            )
-
-            dataset2 = data_module.create_preference_to_flan_style_dataset(
-                task="sarahpann/simp_hhrlhf",
-                split=cfg.split,
-                tokenizer_name=cfg.tokenizer_name,
-                max_seq_length=cfg.max_seq_len,
-                prefix=cfg.prefix,
-
-                dataset_name="sarahpann/simp_hhrlhf",
-                dataset_subset="",
-                task_column_names={"sarahpann/simp_hhrlhf": ('chosen', 'rejected')}
-            )
-
-            dataset = datasets.concatenate_datasets([dataset0, dataset1, dataset2])
-
-        else:
-            dataset = data_module.create_preference_to_flan_style_dataset(
-                task="sarahpann/rwb_chat",
-                split=cfg.split,
-                tokenizer_name=cfg.tokenizer_name,
-                max_seq_length=cfg.max_seq_len,
-                prefix=cfg.prefix,
-
-                dataset_name="sarahpann/rwb_chat",
-                dataset_subset="",
-                task_column_names={"sarahpann/rwb_chat": ('chosen', 'rejected', 'og_dataset')}
-            )
+        dataset = datasets.concatenate_datasets([dataset1, dataset2, dataset3])
 
 
     class CustomDataCollatorForLanguageModeling(transformers.DataCollatorForLanguageModeling):
