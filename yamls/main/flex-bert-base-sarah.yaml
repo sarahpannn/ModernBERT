@@ -75,6 +75,7 @@ freeze: true
 # Dataloaders
 train_loader:
   name: text
+  subset: ${subset}
   dataset:
     # local: ${data_local}
     remote: ${data_remote}
@@ -94,6 +95,7 @@ train_loader:
 
 eval_loader:
   name: text
+  subset: ${subset}
   dataset:
     # local: ${data_local}
     remote: ${data_remote}

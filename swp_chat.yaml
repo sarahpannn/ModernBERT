@@ -26,7 +26,7 @@ parameters:
     max: !!int 27
 
   subset:
-    value: "reasoning"
+    value: "chat"
 
   model.dora:
     value: true
@@ -40,7 +40,7 @@ command:
 # - ${interpreter}
 - composer
 - ${program}
-- /home/public/span/MATH_DPO/modern_bert_test/bert24/yamls/main/flex-bert-base-sarah.yaml
+- yamls/main/flex-bert-base-sarah.yaml
 - ${args_no_hyphens}
 # <!---- wandb stuff ---->
 
