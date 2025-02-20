@@ -365,6 +365,7 @@ dependencies:
   - paramiko=3.4.1
   - pathtools=0.1.2
   - pcre2=10.43
+  - peft=0.10.0
   - pillow=10.3.0
   - pip=24.2
   - pixman=0.43.2
@@ -448,7 +449,7 @@ dependencies:
   - torchvision=0.19.0
   - tornado=6.4.1
   - tqdm=4.66.5
-  - transformers=4.44.1
+  - transformers=4.48
   - typer=0.12.4
   - typer-slim=0.12.4
   - typer-slim-standard=0.12.4
