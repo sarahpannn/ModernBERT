@@ -311,6 +311,8 @@ def create_modern_bert_mlm(
                 labels=label_copy,
             )
 
+        print("INPUT_IDS :", input_ids)
+
         outputs = self.model(
             input_ids,
             attention_mask=attention_mask,
@@ -326,6 +328,8 @@ def create_modern_bert_mlm(
             return_dict=return_dict,
         )
         last_hidden_state = outputs[0]
+
+        print("OUTPUTS :", outputs)
 
         if self.sparse_prediction and labels is not None:
             # flatten labels and output first
@@ -344,6 +348,8 @@ def create_modern_bert_mlm(
             if self.config.reference_compile
             else self.decoder(self.head(last_hidden_state))
         )
+
+        print("LOGITS :", logits)
 
         loss = None
         if labels is not None:

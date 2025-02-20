@@ -19,7 +19,7 @@ run_name: ${format_lr:${optimizer.lr}}_lr_${model.freeze_layers}_freeze_layers_$
 model:
   name: modern_bert
   pretrained_model_name: answerdotai/ModernBERT-large
-  tokenizer_name: ${tokenizer_name}
+  tokenizer_name: answerdotai/ModernBERT-large
   pretrained_checkpoint: answerdotai/ModernBERT-large
   # freeze: true
   # freeze_layers: 0 # valid are 0 through 27
