@@ -798,6 +798,8 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
                 device_train_microbatch_size=cfg.get("device_train_microbatch_size", "auto"),
                 reset_time=cfg.get("reset_time", False),
             )
+            model.model.save_pretrained("sky_workdir")
+            
         else:
             trainer.fit(reset_time=cfg.get("reset_time", False))
 
