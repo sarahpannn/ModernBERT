@@ -1,0 +1,49 @@
+# <---- wandb stuff ---->
+program: main.py
+metric:
+  name: metrics/eval/MulticlassAccuracy
+  goal: maximize
+
+method: bayes
+parameters:
+  optimizer.lr:
+    min: !!float 1e-5
+    max: !!float 5e-4
+  # model.model_config.hidden_dropout_prob:
+  #   min: !!float 0.0
+  #   max: !!float 0.85
+  prefix:
+    value: "" # real prefixes are hardcoded in main
+
+  model.freeze_layers:
+    min: !!int 0
+    max: !!int 27
+  model.use_dora:
+    value: false
+    # values: [true, false]
+
+  model.mixed_mlm:
+    value: true
+
+  subset:
+    value: "all_at_once"
+
+  device_train_microbatch_size:
+    value: 8
+
+  device_eval_microbatch_size:
+    value: 8
+
+
+command:
+# - ${env}
+# - ${interpreter}
+- composer
+- ${program}
+- yamls/main/flex-bert-base-sarah-mix.yaml
+- ${args_no_hyphens}
+# <!---- wandb stuff ---->
+
+# wandb agent sarahpan888/tinyrm_hparam_sweet/63va6ye9
+
+# wandb agent sarahpan888/cls_sweep_with_freezing/unerbasd

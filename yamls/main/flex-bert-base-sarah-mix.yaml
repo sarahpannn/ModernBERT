@@ -1,0 +1,181 @@
+# Note that some of the fields in this template haven't been filled in yet.
+# Please resolve any `null` fields before launching!
+
+# Follow the instructions in the README to set up ./my-copy-c4
+# Or point data paths to your remote C4 dataset
+# data_local: ./my-copy-c4
+data_remote: sarahpann/mlm_cls_skywork
+
+max_seq_len: 3600
+tokenizer_name: bclavie/olmo_bert_template # switch to bert tokenizer until we add [MASK] token to the llama tokenizer meta-llama/Llama-2-7b-hf
+mlm_probability: 0.30 # FlexBERT should use 30% masking for optimal performance
+
+# Run Name
+
+run_name: ${format_lr:${optimizer.lr}}_lr_${model.freeze_layers}_freeze_layers_${first_word:${prefix}}_prefix
+
+
+# Model
+model:
+  name: modern_bert
+  pretrained_model_name: answerdotai/ModernBERT-large
+  tokenizer_name: answerdotai/ModernBERT-large
+  pretrained_checkpoint: answerdotai/ModernBERT-large
+  # freeze: true
+  # freeze_layers: 0 # valid are 0 through 27
+  mixed_mlm: true
+  checkpoint_dict:
+    reasoning: answerdotai/ModernBERT-large
+    safety: answerdotai/ModernBERT-large
+    chat: answerdotai/ModernBERT-large
+
+  model_config:
+    attention_bias: false
+    attention_dropout: 0.0
+    bos_token_id: 50281
+    classifier_activation: gelu
+    classifier_bias: false
+    classifier_dropout: 0.0
+    classifier_pooling: mean
+    cls_token_id: 50281
+    decoder_bias: true
+    deterministic_flash_attn: false
+    embedding_dropout: 0.0
+    eos_token_id: 50282
+    global_attn_every_n_layers: 3
+    global_rope_theta: 160000.0
+    gradient_checkpointing: false
+    hidden_activation: gelu
+    hidden_size: 1024
+    hidden_dropout_prob: 0.0
+    initializer_cutoff_factor: 2.0
+    initializer_range: 0.02
+    intermediate_size: 2624
+    layer_norm_eps: 1e-05
+    local_attention: 128
+    local_rope_theta: 10000.0
+    max_position_embeddings: 8192
+    mlp_bias: false
+    mlp_dropout: 0.0
+    model_type: modernbert
+    norm_bias: false
+    norm_eps: 1e-05
+    num_attention_heads: 16
+    num_hidden_layers: 28
+    pad_token_id: 50283
+    position_embedding_type: absolute
+    sep_token_id: 50282
+    tie_word_embeddings: true
+    torch_dtype: float32
+    transformers_version: 4.47.0.dev0
+    vocab_size: 50368
+    final_norm: true
+    sliding_window: 128
+    loss_function: fa_cross_entropy
+
+add_prefix: true
+# prefix: "Determine which response is the best choice based on mathematical or programming accuracy. " # TODO: Change
+freeze: true
+
+# Dataloaders
+train_loader:
+  name: text
+  subset: ${subset}
+  dataset:
+    # local: ${data_local}
+    remote: ${data_remote}
+    split: train
+    tokenizer_name: ${tokenizer_name}
+    max_seq_len: ${max_seq_len}
+    shuffle: true
+    mlm_probability: ${mlm_probability}
+  split: train
+  tokenizer_name: ${tokenizer_name}
+  max_seq_len: ${max_seq_len}
+  shuffle: true
+  drop_last: true
+  num_workers: 8
+  add_prefix: ${add_prefix}
+  prefix: ${prefix}
+
+eval_loader:
+  name: text
+  subset: ${subset}
+  dataset:
+    # local: ${data_local}
+    remote: ${data_remote}
+    split: train
+    tokenizer_name: ${tokenizer_name}
+    max_seq_len: ${max_seq_len}
+    shuffle: false
+    mlm_probability: 0.15 # We always evaluate at 15% masking for consistent comparison
+  split: train
+  tokenizer_name: ${tokenizer_name}
+  max_seq_len: ${max_seq_len}
+  shuffle: true
+  drop_last: true
+  num_workers: 8
+  add_prefix: ${add_prefix}
+  prefix: ${prefix}
+
+# Optimization
+scheduler:
+  name: linear_decay_with_warmup
+  t_warmup: 0.06dur # Warmup to the full LR for 6% of the training duration
+  alpha_f: 0.02 # Linearly decay to 0.02x the full LR by the end of the training duration
+
+optimizer:
+  name: decoupled_adamw
+  # lr: 1e-4
+  betas:
+  - 0.9
+  - 0.98
+  eps: 1.0e-06
+  weight_decay: 1.0e-5 # Amount of weight decay regularization
+  filter_bias_norm_wd: true # If True, doesn't apply weight decay to norm layers and biases
+
+# algorithms:
+
+max_duration: 1ep # Subsample the training data for ~275M samples
+eval_interval: 50ba
+global_train_batch_size: 256
+
+# System
+seed: 17
+device_train_microbatch_size: 4
+# device_train_microbatch_size: auto
+precision: amp_bf16
+
+global_eval_batch_size: 256
+device_eval_microbatch_size: 4
+
+# Logging
+progress_bar: false
+log_to_console: false
+console_log_interval: 1ba
+
+callbacks:
+  speed_monitor:
+    window_size: 500
+  lr_monitor: {}
+
+algorithms:
+  gradient_clipping:
+    clipping_type: norm
+    clipping_threshold: 1.0
+
+# (Optional) W&B logging
+loggers:
+  wandb:
+    project: bert24-flan
+    entity: sarahpan888
+
+# (Optional) Checkpoint to local filesystem or remote object store
+# save_num_checkpoints_to_keep: 1  # Important, this cleans up checkpoints saved to DISK
+# save_folder: /home/public/span/MATH_DPO/modern_bert_test/bert24/checkpoints
+
+# (Optional) Load from local filesystem or remote object store to
+# start from an existing model checkpoint;
+# e.g. './ckpt/latest-rank{rank}.pt' (local), or
+# 's3://mybucket/mydir/ckpt/latest-rank{rank}.pt' (remote)
+# load_path: null

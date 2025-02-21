@@ -208,7 +208,7 @@ def create_modern_bert_mixed_mlm(
     base_model = AutoModelForMaskedLM.from_pretrained(pretrained_model_name,
                                                         config=model_config)
     
-    new_state_dict = base_model.model.state_dict().copy()
+    new_state_dict = base_model.state_dict().copy()
 
     for param in new_state_dict:
         new_weight = torch.zeros_like(new_state_dict[param])
@@ -217,7 +217,7 @@ def create_modern_bert_mixed_mlm(
     for key in checkpoint_dict:
         model = AutoModelForMaskedLM.from_pretrained(checkpoint_dict[key],
                                                      config=model_config)
-        state_dict = model.model.state_dict()
+        state_dict = model.state_dict()
         for param in state_dict:
             new_state_dict[param] += state_dict[param] / len(checkpoint_dict)
     
