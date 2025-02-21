@@ -268,7 +268,7 @@ def get_num_tokens_in_batch_unpadded(batch: dict):
     return batch["attention_mask"].sum().item()
 
 def create_reasoning_ds(split, tokenizer, max_seq_length, 
-                        refix, eval_mode=False, overwrite_prefix=False):
+                        prefix, eval_mode=False, overwrite_prefix=False):
     # not ideal, but overwrite prefix
     if overwrite_prefix:
         prefix = "Determine which response is the best choice based on mathematical or programming accuracy. "
@@ -799,7 +799,7 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
                 reset_time=cfg.get("reset_time", False),
             )
             model.model.save_pretrained("sky_workdir")
-            
+
         else:
             trainer.fit(reset_time=cfg.get("reset_time", False))
 

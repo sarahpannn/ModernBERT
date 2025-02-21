@@ -308,6 +308,7 @@ def create_modern_bert_mlm(
             outputs = self.model(
                 input_ids,
                 attention_mask=attention_mask,
+                labels=labels,
                 return_dict=return_dict,
             )
             return MaskedLMOutput(
