@@ -693,7 +693,7 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
     )
     if cfg.get("eval_loader", None) is not None:
         print("Building eval loader...")
-        global_eval_batch_size = cfg.get("global_eval_batch_size", cfg.global_train_batch_size)
+        global_eval_batch_size = cwfg.get("global_eval_batch_size", cfg.global_train_batch_size)
         eval_loader = build_dataloader(
             cfg=cfg.eval_loader,
             tokenizer=model.tokenizer,
@@ -798,7 +798,7 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
                 device_train_microbatch_size=cfg.get("device_train_microbatch_size", "auto"),
                 reset_time=cfg.get("reset_time", False),
             )
-            model.model.push_to_hub("sky_workdir")
+            model.model.push_to_hub(f"sarahpannn/{cfg.subset}_model")
 
         else:
             trainer.fit(reset_time=cfg.get("reset_time", False))
