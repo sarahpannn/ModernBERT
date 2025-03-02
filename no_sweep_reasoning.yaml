@@ -136,7 +136,7 @@ optimizer:
 
 # algorithms:
 
-max_duration: 10ba # Subsample the training data for ~275M samples
+max_duration: 1ep # Subsample the training data for ~275M samples
 eval_interval: 50ba
 global_train_batch_size: 256
 
@@ -167,7 +167,7 @@ algorithms:
 # (Optional) W&B logging
 loggers:
   wandb:
-    project: bert24-flan
+    project: db-save
     entity: sarahpan888
 
 # (Optional) Checkpoint to local filesystem or remote object store
