@@ -14,7 +14,7 @@ mlm_probability: 0.30 # FlexBERT should use 30% masking for optimal performance
 
 run_name: ${format_lr:${optimizer.lr}}_lr_${model.freeze_layers}_freeze_layers_${first_word:${prefix}}_prefix
 
-prefix: "Determine which response is the best choice based on mathematical or programming accuracy. "
+prefix: "Which response is more correct? "
 
 subset: reasoning
 # Model
@@ -24,10 +24,10 @@ model:
   tokenizer_name: answerdotai/ModernBERT-large
   pretrained_checkpoint: answerdotai/ModernBERT-large
   # freeze: true
-  freeze_layers: 0 # valid are 0 through 27
+  freeze_layers: 12 # valid are 0 through 27
   mixed_mlm: false
   use_dora: true
-  r_dim: 8
+  r_dim: 128
 
   model_config:
     attention_bias: false
@@ -126,7 +126,7 @@ scheduler:
 
 optimizer:
   name: decoupled_adamw
-  lr: 0.00008169141697855982
+  lr: 0.00002327475273202738
   betas:
   - 0.9
   - 0.98
