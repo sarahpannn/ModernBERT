@@ -809,7 +809,7 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
         if cfg.model.get("use_dora"):
             model.model.merge_and_unload()
 
-        model.model.push_to_hub(f"sarahpann/{cfg.subset}_model")
+        model.model.push_to_hub(f"sarahpann/{cfg.subset}_model_{cfg.model.pretrained_model_name}")
 
     if return_trainer:
         return trainer
