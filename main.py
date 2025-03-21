@@ -368,19 +368,23 @@ def create_chat_ds(split, tokenizer, max_seq_length,
             task_column_names={"sarahpann/webgpt_comparisons_simp": ('chosen', 'rejected')}
         )
 
-        dataset2 = data_module.create_preference_to_flan_style_dataset(
-            task="sarahpann/simp_hhrlhf",
-            split=split,
-            tokenizer_name=tokenizer,
-            max_seq_length=max_seq_length,
-            prefix=prefix,
+        if not overwrite_prefix: # no hhrlhf if mixed training
+            dataset2 = data_module.create_preference_to_flan_style_dataset(
+                task="sarahpann/simp_hhrlhf",
+                split=split,
+                tokenizer_name=tokenizer,
+                max_seq_length=max_seq_length,
+                prefix=prefix,
 
-            dataset_name="sarahpann/simp_hhrlhf",
-            dataset_subset="",
-            task_column_names={"sarahpann/simp_hhrlhf": ('chosen', 'rejected')}
-        )
+                dataset_name="sarahpann/simp_hhrlhf",
+                dataset_subset="",
+                task_column_names={"sarahpann/simp_hhrlhf": ('chosen', 'rejected')}
+            )
 
-        dataset = datasets.concatenate_datasets([dataset, dataset1, dataset2])
+            dataset = datasets.concatenate_datasets([dataset, dataset1, dataset2])
+        
+        else: 
+            dataset = datasets.concatenate_datasets([dataset, dataset1])
 
     else:
         dataset = data_module.create_preference_to_flan_style_dataset(
