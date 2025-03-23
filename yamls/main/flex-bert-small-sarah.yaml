@@ -108,7 +108,7 @@ eval_loader:
   tokenizer_name: ${tokenizer_name}
   max_seq_len: ${max_seq_len}
   shuffle: true
-  drop_last: true
+  drop_last: truesky-be16-sarahpan
   num_workers: 8
   add_prefix: ${add_prefix}
   prefix: ${prefix}
@@ -137,12 +137,12 @@ global_train_batch_size: 256
 
 # System
 seed: 17
-device_train_microbatch_size: 4
+device_train_microbatch_size: 16
 # device_train_microbatch_size: auto
 precision: amp_bf16
 
 global_eval_batch_size: 256
-device_eval_microbatch_size: 4
+device_eval_microbatch_size: 16
 
 # Logging
 progress_bar: false
