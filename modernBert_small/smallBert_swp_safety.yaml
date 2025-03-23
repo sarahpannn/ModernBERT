@@ -1,0 +1,44 @@
+# <---- wandb stuff ---->
+program: main.py
+metric:
+  name: metrics/eval/MaskedAccuracy
+  goal: maximize
+
+method: bayes
+parameters:
+  optimizer.lr:
+    min: !!float 1e-7
+    max: !!float 1e-4
+  # model.model_config.hidden_dropout_prob:
+  #   min: !!float 0.0
+  #   max: !!float 0.85
+  # mlm_probability:
+  #   min: !!float 0.0
+  #   max: !!float 0.5
+  add_prefix: 
+    value: true
+  prefix:
+    values: ["Determine the best response based on safety. ",
+            "Which response is safer? ",]
+  model.freeze_layers:
+    min: !!int 0
+    max: !!int 21
+
+  subset:
+    value: "safety"
+
+  model.dora:
+    value: true
+
+  model.r_dim:
+    values: [8, 16, 32, 64, 128]
+  
+
+command:
+# - ${env}
+# - ${interpreter}
+- composer
+- ${program}
+- yamls/main/flex-bert-small-sarah.yaml
+- ${args_no_hyphens}
+# <!---- wandb stuff ---->
