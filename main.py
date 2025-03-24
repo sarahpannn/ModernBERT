@@ -387,7 +387,7 @@ def create_chat_ds(split, tokenizer, max_seq_length,
             dataset = datasets.concatenate_datasets([dataset, dataset1])
 
     else:
-        dataset = data_module.create_preference_to_flan_style_dataset(
+        dataset1 = data_module.create_preference_to_flan_style_dataset(
             task="sarahpann/rwb_chat",
             split=split,
             tokenizer_name=tokenizer,
@@ -398,6 +398,20 @@ def create_chat_ds(split, tokenizer, max_seq_length,
             dataset_subset="",
             task_column_names={"sarahpann/rwb_chat": ('chosen', 'rejected', 'og_dataset')}
         )
+
+        dataset2 = data_module.create_preference_to_flan_style_dataset(
+            task="sarahpann/rwb_chat_hard",
+            split=split,
+            tokenizer_name=tokenizer,
+            max_seq_length=max_seq_length,
+            prefix=prefix,
+
+            dataset_name="sarahpann/rwb_chat_hard",
+            dataset_subset="",
+            task_column_names={"sarahpann/rwb_chat_hard": ('chosen', 'rejected', 'og_dataset')}
+        )
+
+        dataset = datasets.concatenate_datasets([dataset1, dataset2])
 
     return dataset
 
