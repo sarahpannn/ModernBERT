@@ -37,7 +37,7 @@ command:
 # - ${interpreter}
 - composer
 - ${program}
-- yamls/main/flex-bert-base-sarah.yaml
+- yamls/main/flex-bert-base-sarah-mix.yaml
 - ${args_no_hyphens}
 # <!---- wandb stuff ---->
 
