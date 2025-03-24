@@ -93,7 +93,7 @@ def create_vanilla_dataset(
         dataset_name,
         dataset_subset if dataset_subset is not None else task, # COMMENT OUT IF PERSONAL DATASET DOES NOT HAVE SUBSET
         split=split,
-        download_config=download_config,
+        download_config=download_config
     )
 
     log.info(f"Starting tokenization by preprocessing over {num_workers} threads!")
@@ -665,7 +665,7 @@ def create_preference_to_flan_style_dataset(task: str,
 
             ret_dict = {
                 "input_ids": tokenized_pairs["input_ids"],
-                "token_type_ids": tokenized_pairs["token_type_ids"],
+                # "token_type_ids": tokenized_pairs["token_type_ids"],
                 "attention_mask": tokenized_pairs["attention_mask"],
             }
 
