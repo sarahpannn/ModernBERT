@@ -19,7 +19,9 @@ parameters:
     min: !!int 0
     max: !!int 27
   model.use_dora:
-    value: false
+    value: true
+  model.r_dim:
+    values: [8, 16, 32, 64, 128]
     # values: [true, false]
 
   subset:
