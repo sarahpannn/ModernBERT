@@ -151,7 +151,7 @@ device_train_microbatch_size: 8
 precision: amp_bf16
 
 global_eval_batch_size: 256
-device_eval_microbatch_size: 4
+device_eval_microbatch_size: 8
 
 # Logging
 progress_bar: false

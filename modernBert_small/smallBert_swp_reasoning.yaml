@@ -28,11 +28,11 @@ parameters:
   subset:
     value: "reasoning"
 
-  model.dora:
+  model.use_dora:
     value: false
 
-  # model.r_dim:
-  #   values: [8, 16, 32, 64, 128]
+  model.r_dim:
+    values: [8, 16, 32, 64, 128]
   
 
 command:

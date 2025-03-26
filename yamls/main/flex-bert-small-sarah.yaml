@@ -13,7 +13,7 @@ mlm_probability: 0.30 # FlexBERT should use 30% masking for optimal performance
 # Run Name
 
 run_name: ${format_lr:${optimizer.lr}}_lr_${model.freeze_layers}_freeze_layers_${first_word:${prefix}}_prefix
-
+save: true
 
 # Model
 model:
@@ -137,12 +137,12 @@ global_train_batch_size: 256
 
 # System
 seed: 17
-device_train_microbatch_size: 16
+# device_train_microbatch_size: 16
 # device_train_microbatch_size: auto
 precision: amp_bf16
 
 global_eval_batch_size: 256
-device_eval_microbatch_size: 16
+# device_eval_microbatch_size: 16
 
 # Logging
 progress_bar: false
@@ -160,10 +160,10 @@ algorithms:
     clipping_threshold: 1.0
 
 # (Optional) W&B logging
-loggers:
-  wandb:
-    project: bert24-flan
-    entity: sarahpan888
+# loggers:
+#   wandb:
+#     project: bert24-flan
+#     entity: sarahpan888
 
 # (Optional) Checkpoint to local filesystem or remote object store
 # save_num_checkpoints_to_keep: 1  # Important, this cleans up checkpoints saved to DISK
