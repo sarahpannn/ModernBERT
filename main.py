@@ -824,8 +824,11 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
             model.model.merge_and_unload()
 
         to_save = cfg.get("save", False)
+
+        small_or_large = "large" if "base" not in cfg.model.pretrained_model_name else "small"
+
         if to_save:
-            model.model.push_to_hub(f"sarahpann/{cfg.subset}_model_{cfg.model.pretrained_model_name}")
+            model.model.push_to_hub(f"sarahpann/{cfg.subset}_model_{small_or_large}")
 
     if return_trainer:
         return trainer
