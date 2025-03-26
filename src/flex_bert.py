@@ -227,6 +227,119 @@ def create_modern_bert_mixed_mlm(
     return base_model
 
 
+def create_og_bert_mlm(
+    pretrained_model_name: str = "bert-base-uncased",
+    model_config: Optional[dict] = None,
+    tokenizer_name: Optional[str] = None,
+    gradient_checkpointing: Optional[bool] = False,
+    pretrained_checkpoint: Optional[str] = None,
+    recompute_metric_loss: Optional[bool] = False,
+    disable_train_metrics: Optional[bool] = False,
+    use_dora: Optional[bool] = False,
+    mixed_mlm: Optional[bool] = False,
+    checkpoint_dict: Optional[dict] = None,
+):
+    model = transformers.AutoModelForMaskedLM.from_pretrained(pretrained_model_name,
+                                                                config=model_config)
+    
+    if mixed_mlm:
+        assert False, "MIXED MLM NOT YET SUPPORTED FOR OG BERT"
+
+    if use_dora:
+        print("ADDING DORA ADAPTORS")
+        linear_layers = ["query", "key", "value", "dense", "decoder"]
+
+        dora_config = LoraConfig(use_dora=True, target_modules=linear_layers)
+
+        model = peft.get_peft_model(model, dora_config)
+
+    tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_name)
+
+    def forward(
+        self,
+        input_ids: Optional[torch.Tensor],
+        attention_mask: Optional[torch.Tensor] = None,
+        sliding_window_mask: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        indices: Optional[torch.Tensor] = None,
+        cu_seqlens: Optional[torch.Tensor] = None,
+        max_seqlen: Optional[int] = None,
+        batch_size: Optional[int] = None,
+        seq_len: Optional[int] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        **kwargs,
+        ) -> Union[Tuple[torch.Tensor], MaskedLMOutput]:
+        
+        label_copy = labels.clone()
+        # label_copy[:, 2:] = -100
+
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        if use_dora:
+            outputs = self.model(
+                input_ids,
+                attention_mask=attention_mask,
+                labels=labels,
+                return_dict=return_dict,
+            )
+            return MaskedLMOutput(
+                loss=outputs.loss,
+                logits=outputs.logits,
+                hidden_states=outputs.hidden_states,
+                labels=label_copy,
+            )
+
+        # assert if any of them are inf
+        assert not torch.isinf(input_ids).any()
+        assert not torch.isinf(attention_mask).any()
+
+        outputs = self.model(
+            input_ids,
+            attention_mask=attention_mask,
+        )
+        
+        return MaskedLMOutput(
+            loss=outputs.loss,
+            logits=outputs.logits,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions,
+            labels=label_copy,
+        )
+    
+    model.forward = forward.__get__(model)
+    metrics = [MaskedAccuracy(ignore_index=-100)]
+
+    if recompute_metric_loss or model_config["loss_function"] not in ["fa_cross_entropy", 
+                                                                      "cross_entropy"]:
+        if CrossEntropyLoss is not None:
+            metrics = [FALanguageCrossEntropy(ignore_index=-100)] + metrics
+        else:
+            metrics = [LanguageCrossEntropy(ignore_index=-100)] + metrics
+    else:
+        metrics = [EfficientCrossEntropy()] + metrics
+    if model_config.get("loss_kwargs", {}).get("return_z_loss", False):
+        metrics += [EfficientZLoss()]
+
+    eval_metrics = copy.deepcopy(metrics)
+    if disable_train_metrics:
+        metrics = None
+
+
+    hf_model = EfficientHuggingFaceModel(
+        model=model,
+        tokenizer=tokenizer,
+        use_logits=True,
+        metrics=metrics,
+        eval_metrics=eval_metrics,
+        allow_embedding_resizing=True,
+    )
+
+    return hf_model
+
+
 def create_modern_bert_mlm(
     pretrained_model_name: str = "answerdotai/ModernBERT-large",
     model_config: Optional[dict] = None,

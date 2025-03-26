@@ -644,6 +644,19 @@ def build_model(cfg: DictConfig):
             mixed_mlm=cfg.get("mixed_mlm", False),
             checkpoint_dict=cfg.get("checkpoint_dict", None),
         )
+    elif cfg.name == "og_bert":
+        return flex_bert_module.create_og_bert_mlm(
+            pretrained_model_name=cfg.pretrained_model_name,
+            pretrained_checkpoint=cfg.get("pretrained_checkpoint", None),
+            model_config=cfg.get("model_config", None),
+            tokenizer_name=cfg.get("tokenizer_name", None),
+            gradient_checkpointing=cfg.get("gradient_checkpointing", None),
+            recompute_metric_loss=cfg.get("recompute_metric_loss", False),
+            disable_train_metrics=cfg.get("disable_train_metrics", False),
+            use_dora=cfg.get("use_dora", False),
+            mixed_mlm=cfg.get("mixed_mlm", False),
+            checkpoint_dict=cfg.get("checkpoint_dict", None),
+        )
     else:
         raise ValueError(f"Not sure how to build model with name={cfg.name}")
 
