@@ -255,61 +255,6 @@ def create_og_bert_mlm(
 
     tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_name)
 
-    def forward(
-        self,
-        input_ids: Optional[torch.Tensor],
-        attention_mask: Optional[torch.Tensor] = None,
-        sliding_window_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.Tensor] = None,
-        labels: Optional[torch.Tensor] = None,
-        indices: Optional[torch.Tensor] = None,
-        cu_seqlens: Optional[torch.Tensor] = None,
-        max_seqlen: Optional[int] = None,
-        batch_size: Optional[int] = None,
-        seq_len: Optional[int] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
-        **kwargs,
-        ) -> Union[Tuple[torch.Tensor], MaskedLMOutput]:
-        
-        label_copy = labels.clone()
-        # label_copy[:, 2:] = -100
-
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-        if use_dora:
-            outputs = self.model(
-                input_ids,
-                attention_mask=attention_mask,
-                labels=labels,
-                return_dict=return_dict,
-            )
-            return MaskedLMOutput(
-                loss=outputs.loss,
-                logits=outputs.logits,
-                hidden_states=outputs.hidden_states,
-                labels=label_copy,
-            )
-
-        # assert if any of them are inf
-        assert not torch.isinf(input_ids).any()
-        assert not torch.isinf(attention_mask).any()
-
-        outputs = self.model(
-            input_ids,
-            attention_mask=attention_mask,
-        )
-        
-        return MaskedLMOutput(
-            loss=outputs.loss,
-            logits=outputs.logits,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
-            labels=label_copy,
-        )
-    
-    model.forward = forward.__get__(model)
     metrics = [MaskedAccuracy(ignore_index=-100)]
 
     if recompute_metric_loss or model_config["loss_function"] not in ["fa_cross_entropy", 
