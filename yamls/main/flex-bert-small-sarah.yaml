@@ -160,10 +160,10 @@ algorithms:
     clipping_threshold: 1.0
 
 # (Optional) W&B logging
-# loggers:
-#   wandb:
-#     project: bert24-flan
-#     entity: sarahpan888
+loggers:
+  wandb:
+    project: 
+    entity: sarahpan888
 
 # (Optional) Checkpoint to local filesystem or remote object store
 # save_num_checkpoints_to_keep: 1  # Important, this cleans up checkpoints saved to DISK
