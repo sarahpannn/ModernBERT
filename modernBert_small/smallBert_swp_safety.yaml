@@ -32,6 +32,12 @@ parameters:
 
   model.r_dim:
     values: [8, 16, 32, 64, 128]
+
+  device_train_microbatch_size:
+    value: 16
+
+  device_eval_microbatch_size:
+    value: 16
   
 
 command:
