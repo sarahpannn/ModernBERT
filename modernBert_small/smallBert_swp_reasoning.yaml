@@ -35,10 +35,10 @@ parameters:
     values: [8, 16, 32, 64, 128]
 
   device_train_microbatch_size:
-    value: 8
+    value: 12
 
   device_eval_microbatch_size:
-    value: 8
+    value: 12
   
 
 command:
