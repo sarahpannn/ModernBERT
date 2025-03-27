@@ -26,10 +26,10 @@ parameters:
     value: "all_at_once"
 
   device_train_microbatch_size:
-    value: 8
+    value: 12
 
   device_eval_microbatch_size:
-    value: 8
+    value: 12
 
 
 command:
