@@ -1,4 +1,4 @@
-# Note that some of the fields in this template haven't been filled in yet.
+ # Note that some of the fields in this template haven't been filled in yet.
 # Please resolve any `null` fields before launching!
 
 # Follow the instructions in the README to set up ./my-copy-c4
@@ -13,6 +13,7 @@ tokenizer_name: bclavie/olmo_bert_template # switch to bert tokenizer until we a
 mlm_probability: 0.30 # FlexBERT should use 30% masking for optimal performance
 
 # Run Name
+save: true
 
 run_name: ${format_lr:${optimizer.lr}}_lr_${model.freeze_layers}_freeze_layers_${first_word:${prefix}}_prefix
 
