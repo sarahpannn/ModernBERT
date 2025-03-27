@@ -16,19 +16,21 @@ parameters:
     value: "" # real prefixes are hardcoded in main
 
   model.freeze_layers:
-    min: !!int 0
-    max: !!int 27
+    # min: !!int 0
+    # max: !!int 27
+    value: 0
+    
   model.use_dora:
-    value: true
-  model.r_dim:
-    values: [8, 16, 32, 64, 128]
+    value: false
+  # model.r_dim:
+  #   values: [8, 16, 32, 64, 128]
     # values: [true, false]
 
   subset:
     value: "all_at_once"
 
   device_train_microbatch_size:
-    value: 8
+    value: 10
 
   device_eval_microbatch_size:
     value: 8
