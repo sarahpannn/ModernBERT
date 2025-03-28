@@ -1,0 +1,53 @@
+# <---- wandb stuff ---->
+program: main.py
+metric:
+  name: metrics/eval/MaskedAccuracy
+  goal: maximize
+
+method: bayes
+parameters:
+  optimizer.lr:
+    min: !!float 1e-7
+    max: !!float 1e-4
+  # model.model_config.hidden_dropout_prob:
+  #   min: !!float 0.0
+  #   max: !!float 0.85
+  # mlm_probability:
+  #   min: !!float 0.0
+  #   max: !!float 0.5
+  add_prefix: 
+    value: true
+  prefix:
+    values: ["Which response is the most helpful, relevant, and correct? ",
+            "Select the best response. ",
+            "Determine the best response based on helpfulness, relevance, and correctness. ",]
+  model.freeze_layers:
+    min: !!int 0
+    max: !!int 23
+
+  subset:
+    value: "chat"
+
+  model.use_dora:
+    value: false
+
+  # model.r_dim:
+  #   values: [8, 16, 32, 64, 128]
+
+  device_train_microbatch_size:
+    value: 16
+
+  device_eval_microbatch_size:
+    value: 16
+  
+
+command:
+# - ${env}
+# - ${interpreter}
+- composer
+- ${program}
+- yamls/main/bert-big-sarah.yaml
+- ${args_no_hyphens}
+# <!---- wandb stuff ---->
+
+# wandb agent sarahpan888/tinyrm_hparam_sweet/63va6ye9
