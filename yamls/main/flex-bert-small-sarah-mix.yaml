@@ -18,9 +18,9 @@ run_name: ${format_lr:${optimizer.lr}}_lr_${model.freeze_layers}_freeze_layers_$
 # Model
 model:
   name: modern_bert
-  pretrained_model_name: answerdotai/ModernBERT-small
-  tokenizer_name: answerdotai/ModernBERT-small
-  pretrained_checkpoint: answerdotai/ModernBERT-small
+  pretrained_model_name: answerdotai/ModernBERT-base
+  tokenizer_name: answerdotai/ModernBERT-base
+  pretrained_checkpoint: answerdotai/ModernBERT-base
   # freeze: true
   # freeze_layers: 0 # valid are 0 through 27
   mixed_mlm: true
