@@ -833,15 +833,17 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
         else:
             trainer.fit(reset_time=cfg.get("reset_time", False))
 
-        if cfg.model.get("use_dora"):
-            model.model.merge_and_unload()
-
         to_save = cfg.get("save", False)
-
         small_or_large = "large" if "base" not in cfg.model.pretrained_model_name else "small"
 
-        if to_save:
-            model.model.push_to_hub(f"sarahpann/{cfg.subset}_model_{small_or_large}")
+
+        if to_save: 
+            if cfg.model.get("use_dora"):
+                model = model.model.merge_and_unload()
+                model.push_to_hub(f"sarahpann/{cfg.subset}_model_{small_or_large}")
+
+            else:
+                model.model.push_to_hub(f"sarahpann/{cfg.subset}_model_{small_or_large}")
 
     if return_trainer:
         return trainer
