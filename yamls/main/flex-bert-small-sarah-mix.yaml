@@ -6,24 +6,28 @@
 # data_local: ./my-copy-c4
 data_remote: sarahpann/mlm_cls_skywork
 
-max_seq_len: 512
-tokenizer_name: google-bert/bert-large-uncased  # switch to bert tokenizer until we add [MASK] token to the llama tokenizer meta-llama/Llama-2-7b-hf
+max_seq_len: 3600
+tokenizer_name: bclavie/olmo_bert_template # switch to bert tokenizer until we add [MASK] token to the llama tokenizer meta-llama/Llama-2-7b-hf
 mlm_probability: 0.30 # FlexBERT should use 30% masking for optimal performance
 
 # Run Name
 
 run_name: ${format_lr:${optimizer.lr}}_lr_${model.freeze_layers}_freeze_layers_${first_word:${prefix}}_prefix
 
-# prefix: "Select the best response. "
 
 # Model
 model:
-  name: og_bert
-  pretrained_model_name: google-bert/bert-large-uncased
-  tokenizer_name: google-bert/bert-large-uncased
-  pretrained_checkpoint: google-bert/bert-large-uncased
+  name: modern_bert
+  pretrained_model_name: answerdotai/ModernBERT-small
+  tokenizer_name: answerdotai/ModernBERT-small
+  pretrained_checkpoint: answerdotai/ModernBERT-small
   # freeze: true
-  # freeze_layers: 0 # valid are 0 through 23
+  # freeze_layers: 0 # valid are 0 through 27
+  mixed_mlm: true
+  checkpoint_dict:
+    reasoning: sarahpann/reasoning_model_small
+    safety: sarahpann/safety_model_small
+    chat: sarahpann/chat_model_small
 
   model_config:
     attention_bias: false
@@ -132,18 +136,18 @@ optimizer:
 
 # algorithms:
 
-max_duration: 2ep # Subsample the training data for ~275M samples
+max_duration: 1ep # Subsample the training data for ~275M samples
 eval_interval: 50ba
 global_train_batch_size: 256
 
 # System
 seed: 17
-# device_train_microbatch_size: 4
+device_train_microbatch_size: 4
 # device_train_microbatch_size: auto
 precision: amp_bf16
 
 global_eval_batch_size: 256
-# device_eval_microbatch_size: 4
+device_eval_microbatch_size: 4
 
 # Logging
 progress_bar: false
