@@ -25,9 +25,9 @@ model:
   # freeze_layers: 0 # valid are 0 through 27
   mixed_mlm: true
   checkpoint_dict:
-    reasoning: answerdotai/ModernBERT-large
-    safety: answerdotai/ModernBERT-large
-    chat: answerdotai/ModernBERT-large
+    reasoning: sarahpann/reasoning_model_large
+    safety: sarahpann/safety_model
+    chat: sarahpann/chat_model
 
   model_config:
     attention_bias: false
