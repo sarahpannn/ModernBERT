@@ -28,10 +28,10 @@ model:
   tokenizer_name: answerdotai/ModernBERT-base
   pretrained_checkpoint: answerdotai/ModernBERT-base
   # freeze: true
-  freeze_layers: 17 # valid are 0 through 21
+  freeze_layers: 19 # valid are 0 through 21
   mixed_mlm: false
   use_dora: true
-  r_dim: 16
+  r_dim: 8
 
   model_config:
     attention_bias: false
@@ -130,7 +130,7 @@ scheduler:
 
 optimizer:
   name: decoupled_adamw
-  lr: 0.00008354258552021845
+  lr: 0.0000213816836549443
   betas:
   - 0.9
   - 0.98
