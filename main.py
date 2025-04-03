@@ -839,8 +839,9 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
 
         if to_save: 
             if cfg.model.get("use_dora"):
-                model = model.model.merge_and_unload()
-                model.push_to_hub(f"sarahpann/{cfg.subset}_model_{small_or_large}")
+                # model = model.model.merge_and_unload()
+                # model.push_to_hub(f"sarahpann/{cfg.subset}_model_{small_or_large}")
+                model.model.push_to_hub(f"sarahpann/{cfg.subset}_model_{small_or_large}")
 
             else:
                 model.model.push_to_hub(f"sarahpann/{cfg.subset}_model_{small_or_large}")
