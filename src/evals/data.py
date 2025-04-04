@@ -681,7 +681,7 @@ def create_preference_to_flan_style_dataset(task: str,
         batched=True,
         # batched=False,
         num_proc=None if num_workers == 0 else num_workers,
-        batch_size=1000,
+        batch_size=100,
         remove_columns=columns_to_remove,
         load_from_cache_file=True,
     )

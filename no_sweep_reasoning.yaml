@@ -10,7 +10,7 @@ data_remote: sarahpann/mlm_cls_skywork
 
 max_seq_len: 3600
 tokenizer_name: bclavie/olmo_bert_template # switch to bert tokenizer until we add [MASK] token to the llama tokenizer meta-llama/Llama-2-7b-hf
-mlm_probability: 0.30 # FlexBERT should use 30% masking for optimal performance
+mlm_probability: 0.0 # FlexBERT should use 30% masking for optimal performance
 
 # Run Name
 save: true
