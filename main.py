@@ -654,6 +654,7 @@ def build_model(cfg: DictConfig):
             recompute_metric_loss=cfg.get("recompute_metric_loss", False),
             disable_train_metrics=cfg.get("disable_train_metrics", False),
             use_dora=cfg.get("use_dora", False),
+            r_dim=cfg.get("r_dim", None),
             mixed_mlm=cfg.get("mixed_mlm", False),
             checkpoint_dict=cfg.get("checkpoint_dict", None),
         )

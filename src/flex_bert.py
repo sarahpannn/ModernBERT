@@ -236,6 +236,7 @@ def create_og_bert_mlm(
     recompute_metric_loss: Optional[bool] = False,
     disable_train_metrics: Optional[bool] = False,
     use_dora: Optional[bool] = False,
+    r_dim: Optional[int] = 128,
     mixed_mlm: Optional[bool] = False,
     checkpoint_dict: Optional[dict] = None,
 ):
@@ -249,7 +250,9 @@ def create_og_bert_mlm(
         print("ADDING DORA ADAPTORS")
         linear_layers = ["query", "key", "value", "dense", "decoder"]
 
-        dora_config = LoraConfig(use_dora=True, target_modules=linear_layers)
+        dora_config = LoraConfig(use_dora=True, 
+                                 target_modules=linear_layers,
+                                 r=r_dim,)
 
         model = peft.get_peft_model(model, dora_config)
 
@@ -322,7 +325,9 @@ def create_modern_bert_mlm(
         print("ADDING DORA ADAPTORS")
         linear_layers = ["Wqkv", "Wi", "Wo", "dense", "decoder"]
 
-        dora_config = LoraConfig(use_dora=True, target_modules=linear_layers)
+        dora_config = LoraConfig(use_dora=True, 
+                                 target_modules=linear_layers,
+                                 r=128,)
 
         model = peft.get_peft_model(model, dora_config)
 
