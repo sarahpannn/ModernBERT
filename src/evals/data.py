@@ -674,7 +674,7 @@ def create_preference_to_flan_style_dataset(task: str,
                 tokenized_pair1s["input_ids"] = tokenized_pair1s["input_ids"][:-(len_tokenized_postfix)] + tokenized_postfix
 
             ret_dict = {
-                "input_ids": tokenized_pairs["input_ids"].extend(tokenized_pair1s["input_ids"]),
+                "input_ids": tokenized_pairs["input_ids"] + tokenized_pair1s["input_ids"],
                 "attention_mask": tokenized_pairs["attention_mask"],
             }
 
