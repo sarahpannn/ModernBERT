@@ -649,23 +649,32 @@ def create_preference_to_flan_style_dataset(task: str,
             coin = random.randint(0, 1)
             # if coin == 0, then chosen goes first
             choice_postfix = postfix + " " + str(coin)
+            opposite_postfix = postfix + " " + str((coin + 1) % 2)
 
             if coin == 0:
                 pairs = [[prefix + " Choice 0: " + chosen, " Choice 1: " + rejected + choice_postfix] for chosen, rejected in zip(inp["chosen"], inp["rejected"])]
+                pairs1 = [[prefix + " Choice 0: " + rejected, " Choice 1: " + chosen + opposite_postfix] for chosen, rejected in zip(inp["chosen"], inp["rejected"])]
             if coin == 1:
                 pairs = [[prefix + " Choice 0: " + rejected, " Choice 1: " + chosen + choice_postfix] for chosen, rejected in zip(inp["chosen"], inp["rejected"])]
+                pairs1 = [[prefix + " Choice 0: " + chosen, " Choice 1: " + rejected + opposite_postfix] for chosen, rejected in zip(inp["chosen"], inp["rejected"])]
 
             tokenized_pairs = tokenizer(pairs,
                                         max_length=max_seq_length, 
                                         truncation=True)
+            
+            tokenized_pair1s = tokenizer(pairs1,
+                                         max_length=max_seq_length, 
+                                         truncation=True)
 
             # Always has an answer even if truncated
             if len(tokenized_pairs["input_ids"]) == max_seq_length:
                 tokenized_pairs["input_ids"] = tokenized_pairs["input_ids"][:-(len_tokenized_postfix)] + tokenized_postfix
 
+            if len(tokenized_pair1s["input_ids"]) == max_seq_length:
+                tokenized_pair1s["input_ids"] = tokenized_pair1s["input_ids"][:-(len_tokenized_postfix)] + tokenized_postfix
+
             ret_dict = {
-                "input_ids": tokenized_pairs["input_ids"],
-                # "token_type_ids": tokenized_pairs["token_type_ids"],
+                "input_ids": tokenized_pairs["input_ids"].extend(tokenized_pair1s["input_ids"]),
                 "attention_mask": tokenized_pairs["attention_mask"],
             }
 
