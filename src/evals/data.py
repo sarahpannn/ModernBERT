@@ -675,7 +675,7 @@ def create_preference_to_flan_style_dataset(task: str,
 
             ret_dict = {
                 "input_ids": tokenized_pairs["input_ids"] + tokenized_pair1s["input_ids"],
-                "attention_mask": tokenized_pairs["attention_mask"],
+                "attention_mask": tokenized_pairs["attention_mask"] + tokenized_pair1s["attention_mask"],
             }
 
             return ret_dict
