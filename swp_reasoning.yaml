@@ -28,7 +28,7 @@ parameters:
   subset:
     value: "reasoning"
 
-  model.dora:
+  model.use_dora:
     value: true
 
   model.r_dim:
