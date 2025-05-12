@@ -674,7 +674,7 @@ def create_preference_to_flan_style_dataset(task: str,
                 tokenized_pair1s["input_ids"] = tokenized_pair1s["input_ids"][:-(len_tokenized_postfix)] + tokenized_postfix
 
             ret_dict = {
-                "input_ids": tokenized_pairs["input_ids"] + tokenized_pair1s["input_ids"],
+                "input_ids": tokenized_pairs["input_ids"],
                 "attention_mask": tokenized_pairs["attention_mask"] + tokenized_pair1s["attention_mask"],
             }
 
@@ -690,7 +690,7 @@ def create_preference_to_flan_style_dataset(task: str,
         batched=True,
         # batched=False,
         num_proc=None if num_workers == 0 else num_workers,
-        batch_size=100,
+        batch_size=1000,
         remove_columns=columns_to_remove,
         load_from_cache_file=True,
     )
