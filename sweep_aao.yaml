@@ -7,7 +7,7 @@ metric:
 method: bayes
 parameters:
   optimizer.lr:
-    min: !!float 1e-5
+    min: !!float 1e-7
     max: !!float 5e-4
   # model.model_config.hidden_dropout_prob:
   #   min: !!float 0.0
@@ -16,9 +16,9 @@ parameters:
     value: "" # real prefixes are hardcoded in main
 
   model.freeze_layers:
-    # min: !!int 0
-    # max: !!int 27
-    value: 0
+    min: !!int 0
+    max: !!int 27
+    # value: 0
     
   model.use_dora:
     value: false
@@ -30,10 +30,10 @@ parameters:
     value: "all_at_once"
 
   device_train_microbatch_size:
-    value: 10
+    value: 16
 
   device_eval_microbatch_size:
-    value: 8
+    value: 16
 
 
 command:
@@ -41,7 +41,8 @@ command:
 # - ${interpreter}
 - composer
 - ${program}
-- yamls/main/flex-bert-base-sarah-mix.yaml
+# - yamls/main/flex-bert-base-sarah-mix.yaml
+- yamls/main/flex-bert-small-sarah.yaml
 - ${args_no_hyphens}
 # <!---- wandb stuff ---->
 
