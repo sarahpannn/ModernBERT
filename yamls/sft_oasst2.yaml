@@ -1,0 +1,95 @@
+# Configuration for SFT training on OASST2 dataset
+# Usage: python sft_oasst2.py yamls/sft_oasst2.yaml
+
+# Run settings
+run_name: "sft_oasst2_modern_bert"
+seed: 42
+
+# Model configuration
+model:
+  name: modern_bert  # or flex_bert, hf_bert
+  pretrained_model_name: "answerdotai/ModernBERT-large"  # or your preferred model
+  use_pretrained: true
+  tokenizer_name: "answerdotai/ModernBERT-large"
+  gradient_checkpointing: false
+  
+# Training data loader
+train_loader:
+  tokenizer_name: "answerdotai/ModernBERT-large"
+  split: "train"
+  max_seq_len: 512
+  num_workers: 4
+  shuffle: true
+  drop_last: true
+  pin_memory: true
+  prefetch_factor: 2
+  persistent_workers: true
+
+# Optional evaluation data loader  
+# eval_loader:
+#   tokenizer_name: "answerdotai/ModernBERT-base"
+#   split: "validation"
+#   max_seq_len: 512
+#   num_workers: 4
+#   shuffle: false
+#   drop_last: false
+
+# Batch size configuration
+global_train_batch_size: 32
+device_train_microbatch_size: 4
+# global_eval_batch_size: 32
+# device_eval_microbatch_size: 4
+
+# Training duration and evaluation
+max_duration: "3ep"  # 3 epochs
+eval_interval: "500ba"  # evaluate every 500 batches
+train_subset_num_batches: -1  # use full dataset
+eval_subset_num_batches: -1
+
+# Optimizer configuration
+optimizer:
+  name: adamw
+  lr: 5.0e-5
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+  weight_decay: 0.01
+  filter_bias_norm_wd: true
+
+# Learning rate scheduler
+scheduler:
+  name: linear_decay_with_warmup
+  t_warmup: "0.1dur"  # 10% warmup
+  alpha_f: 0.0  # decay to 0
+
+# Precision and device settings
+precision: "amp_fp16"  # mixed precision training
+device: "gpu"
+
+# Checkpointing
+save_folder: "./checkpoints/sft_oasst2"
+save_interval: "1000ba"
+save_num_checkpoints_to_keep: 2
+save_overwrite: false
+save_final_model: true
+final_model_name: "ModernBERT-sft-oasst2"
+
+# Logging
+progress_bar: true
+log_to_console: true
+console_log_interval: "10ba"
+
+# Loggers (optional - uncomment to use)
+# loggers:
+#   wandb:
+#     project: "modernbert-sft"
+#     name: "oasst2-sft"
+#     tags: ["sft", "oasst2", "modernbert"]
+
+# Callbacks for monitoring
+callbacks:
+  speed_monitor:
+    window_size: 10
+  lr_monitor: {}
+  memory_monitor: {}
+  # optimizer_monitor:
+  #   log_optimizer_metrics: true

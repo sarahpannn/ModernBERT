@@ -37,7 +37,7 @@ parameters:
   #   values: [8, 16, 32, 64, 128]
 
   max_duration:
-    value: 4ep
+    value: 5ep
   
 
 command:
