@@ -77,7 +77,7 @@ model:
 
 add_prefix: true
 # prefix: "Determine which response is the best choice based on mathematical or programming accuracy. " # TODO: Change
-freeze: true
+freeze: false
 
 # Dataloaders
 train_loader:
@@ -144,12 +144,12 @@ global_train_batch_size: 256
 
 # System
 seed: 17
-device_train_microbatch_size: 8
+device_train_microbatch_size: 2
 # device_train_microbatch_size: auto
 precision: amp_bf16
 
 global_eval_batch_size: 256
-device_eval_microbatch_size: 4
+device_eval_microbatch_size: 2
 
 # Logging
 progress_bar: false
@@ -169,7 +169,7 @@ algorithms:
 # (Optional) W&B logging
 loggers:
   wandb:
-    project: db-save
+    project: ablation
     entity: sarahpan888
 
 # (Optional) Checkpoint to local filesystem or remote object store

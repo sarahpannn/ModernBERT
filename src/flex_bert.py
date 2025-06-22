@@ -247,7 +247,7 @@ def create_og_bert_mlm(
         assert False, "MIXED MLM NOT YET SUPPORTED FOR OG BERT"
 
     if use_dora:
-        print("ADDING DORA ADAPTORS")
+        print(f"ADDING DORA ADAPTORS WITH DIM {r_dim}")
         linear_layers = ["query", "key", "value", "dense", "decoder"]
 
         dora_config = LoraConfig(use_dora=True, 

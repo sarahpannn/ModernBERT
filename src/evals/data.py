@@ -646,17 +646,14 @@ def create_preference_to_flan_style_dataset(task: str,
 
         def tokenizer_fn(inp):
             # flip a coin
-            coin = random.randint(0, 1)
+            # coin = random.randint(0, 1)
             # if coin == 0, then chosen goes first
-            choice_postfix = postfix + " " + str(coin)
-            opposite_postfix = postfix + " " + str((coin + 1) % 2)
+            # choice_postfix = postfix + " " + str(coin)
+            # opposite_postfix = postfix + " " + str((coin + 1) % 2)
 
-            if coin == 0:
-                pairs = [[prefix + " Choice 0: " + chosen, " Choice 1: " + rejected + choice_postfix] for chosen, rejected in zip(inp["chosen"], inp["rejected"])]
-                pairs1 = [[prefix + " Choice 0: " + rejected, " Choice 1: " + chosen + opposite_postfix] for chosen, rejected in zip(inp["chosen"], inp["rejected"])]
-            if coin == 1:
-                pairs = [[prefix + " Choice 0: " + rejected, " Choice 1: " + chosen + choice_postfix] for chosen, rejected in zip(inp["chosen"], inp["rejected"])]
-                pairs1 = [[prefix + " Choice 0: " + chosen, " Choice 1: " + rejected + opposite_postfix] for chosen, rejected in zip(inp["chosen"], inp["rejected"])]
+            pairs = [[prefix + "Question: " + question + " Choice 0: " + chosen, " Choice 1: " + rejected + postfix + " 0"] for question, chosen, rejected in zip(inp['question'], inp["chosen"], inp["rejected"])]
+            pairs1 = [[prefix + "Question: " + question + " Choice 0: " + rejected, " Choice 1: " + chosen + postfix + " 1"] for question, chosen, rejected in zip(inp['question'], inp["chosen"], inp["rejected"])]
+
 
             tokenized_pairs = tokenizer(pairs,
                                         max_length=max_seq_length, 
@@ -674,8 +671,8 @@ def create_preference_to_flan_style_dataset(task: str,
                 tokenized_pair1s["input_ids"] = tokenized_pair1s["input_ids"][:-(len_tokenized_postfix)] + tokenized_postfix
 
             ret_dict = {
-                "input_ids": tokenized_pairs["input_ids"],
-                "attention_mask": tokenized_pairs["attention_mask"],
+                "input_ids": tokenized_pairs["input_ids"] + tokenized_pair1s["input_ids"],
+                "attention_mask": tokenized_pairs["attention_mask"] + tokenized_pair1s["attention_mask"],
             }
 
             return ret_dict
@@ -690,7 +687,7 @@ def create_preference_to_flan_style_dataset(task: str,
         batched=True,
         # batched=False,
         num_proc=None if num_workers == 0 else num_workers,
-        batch_size=100,
+        batch_size=10000,
         remove_columns=columns_to_remove,
         load_from_cache_file=True,
     )
@@ -703,7 +700,7 @@ def create_rw_bench_reasoning_preference_to_flan_style_dataset(**kwargs):
         **kwargs,
         dataset_name="sarahpann/rwb_reasoning",
         dataset_subset="",
-        task_column_names={"sarahpann/rwb_reasoning": ('chosen', 'rejected', 'og_dataset')}
+        task_column_names={"sarahpann/rwb_reasoning": ('question', 'chosen', 'rejected', 'og_dataset')}
     )
 
 def create_reasoning_preference_to_flan_style_dataset(**kwargs):
@@ -711,7 +708,7 @@ def create_reasoning_preference_to_flan_style_dataset(**kwargs):
         **kwargs,
         dataset_name="sarahpann/skywork_reasoning",
         dataset_subset="",
-        task_column_names={"sarahpann/skywork_reasoning": ('chosen', 'rejected', 'og_dataset')}
+        task_column_names={"sarahpann/skywork_reasoning": ('question', 'chosen', 'rejected', 'source')}
     )
 
 
