@@ -353,7 +353,7 @@ def create_chat_ds(split, tokenizer, max_seq_length,
 
             dataset_name="sarahpann/skywork_chat",
             dataset_subset="",
-            task_column_names={"sarahpann/skywork_chat": ('chosen', 'rejected', 'og_dataset')}
+            task_column_names={"sarahpann/skywork_chat": ('question', 'chosen', 'rejected', 'og_dataset')}
         )
 
         dataset1 = data_module.create_preference_to_flan_style_dataset(
@@ -365,7 +365,7 @@ def create_chat_ds(split, tokenizer, max_seq_length,
 
             dataset_name="sarahpann/webgpt_comparisons_simp",
             dataset_subset="",
-            task_column_names={"sarahpann/webgpt_comparisons_simp": ('chosen', 'rejected')}
+            task_column_names={"sarahpann/webgpt_comparisons_simp": ('question', 'chosen', 'rejected')}
         )
 
         if not overwrite_prefix: # no hhrlhf if mixed training
@@ -378,7 +378,7 @@ def create_chat_ds(split, tokenizer, max_seq_length,
 
                 dataset_name="sarahpann/simp_hhrlhf",
                 dataset_subset="",
-                task_column_names={"sarahpann/simp_hhrlhf": ('chosen', 'rejected')}
+                task_column_names={"sarahpann/simp_hhrlhf": ('question', 'chosen', 'rejected')}
             )
 
             dataset = datasets.concatenate_datasets([dataset, dataset1, dataset2])
@@ -396,7 +396,7 @@ def create_chat_ds(split, tokenizer, max_seq_length,
 
             dataset_name="sarahpann/rwb_chat",
             dataset_subset="",
-            task_column_names={"sarahpann/rwb_chat": ('chosen', 'rejected', 'og_dataset')}
+            task_column_names={"sarahpann/rwb_chat": ('question', 'chosen', 'rejected', 'og_dataset')}
         )
 
         dataset2 = data_module.create_preference_to_flan_style_dataset(
@@ -408,7 +408,7 @@ def create_chat_ds(split, tokenizer, max_seq_length,
 
             dataset_name="sarahpann/rwb_chat_hard",
             dataset_subset="",
-            task_column_names={"sarahpann/rwb_chat_hard": ('chosen', 'rejected', 'og_dataset')}
+            task_column_names={"sarahpann/rwb_chat_hard": ('question', 'chosen', 'rejected', 'og_dataset')}
         )
 
         dataset = datasets.concatenate_datasets([dataset1, dataset2])

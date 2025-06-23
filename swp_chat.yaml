@@ -18,9 +18,10 @@ parameters:
   add_prefix: 
     value: true
   prefix:
-    values: ["Which response is the most helpful, relevant, and correct? ",
-            "Select the best response. ",
-            "Determine the best response based on helpfulness, relevance, and correctness. ",]
+    # values: ["Which response is the most helpful, relevant, and correct? ",
+    #         "Select the best response. ",
+    #         "Determine the best response based on helpfulness, relevance, and correctness. ",]
+    value: "Select the best response. "
   model.freeze_layers:
     min: !!int 0
     max: !!int 27
@@ -28,9 +29,11 @@ parameters:
   subset:
     value: "chat"
 
-  model.dora:
+  model.use_dora:
     value: false
 
+  max_duration:
+    value: 1ep
   # model.r_dim:
   #   values: [8, 16, 32, 64, 128]
   

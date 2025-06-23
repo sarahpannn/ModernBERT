@@ -30,8 +30,8 @@ model:
   # freeze: true
   freeze_layers: 15 # valid are 0 through 27
   mixed_mlm: false
-  use_dora: false
-  r_dim: 8
+  use_dora: true
+  r_dim: 128
 
   model_config:
     attention_bias: false

@@ -301,7 +301,7 @@ def create_modern_bert_mlm(
     checkpoint_dict: Optional[dict] = None,
 ):
 
-    model = transformers.AutoModelForMaskedLM.from_pretrained(pretrained_model_name, 
+    model = transformers.AutoModelForMaskedLM.from_pretrained(pretrained_checkpoint if pretrained_checkpoint else pretrained_model_name, 
                                                           config=model_config,
                                                           attn_implementation='flash_attention_2')
     
