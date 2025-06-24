@@ -39,13 +39,13 @@ def main():
     
     # Models to compare
     models = [
-        "answerdotai/ModernBERT-base",  # Your small bidirectional model
+        "sarahpann/chat_model",  # Your small bidirectional model
         "gpt2",                        # Small decoder model
         # "bert-base-uncased",           # Standard BERT for comparison
     ]
     
     # Dataset subsets to analyze
-    subsets = ["reasoning", "chat"]
+    subsets = ["chat"]
     
     print("🔍 Starting model activation analysis...")
     print(f"Will analyze {len(models)} models on {len(subsets)} subsets")
