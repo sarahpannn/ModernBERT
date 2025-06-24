@@ -1,0 +1,38 @@
+models:
+  - name: "flex-bert-base"
+    model_type: "flex_bert"
+    task_type: "classification"
+    pretrained_model_name: "bert-base-uncased"
+    num_labels: 2
+    model_config: {}
+
+  - name: "flex-bert-mlm"
+    model_type: "flex_bert"
+    task_type: "mlm"
+    pretrained_model_name: "bert-base-uncased"
+    model_config: {}
+
+  - name: "mosaic-bert-base"
+    model_type: "mosaic_bert"
+    task_type: "classification"
+    pretrained_model_name: "bert-base-uncased"
+    num_labels: 2
+    model_config: {}
+
+  - name: "hf-bert-base"
+    model_type: "hf_bert"
+    task_type: "classification"
+    pretrained_model_name: "bert-base-uncased"
+    num_labels: 2
+    model_config: {}
+
+  # Example with custom checkpoint
+  # - name: "custom-flex-bert"
+  #   model_type: "flex_bert"
+  #   task_type: "classification"
+  #   pretrained_model_name: "bert-base-uncased"
+  #   pretrained_checkpoint: "path/to/your/checkpoint.pt"
+  #   num_labels: 2
+  #   model_config:
+  #     hidden_size: 768
+  #     num_attention_heads: 12
