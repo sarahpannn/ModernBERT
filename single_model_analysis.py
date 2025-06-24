@@ -16,6 +16,15 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from matplotlib.patches import Rectangle
+import matplotlib.patches as mpatches
+try:
+    from scipy.ndimage import zoom
+    from scipy import interpolate
+except ImportError:
+    print("Warning: scipy not available, some features may be limited")
+    zoom = None
+    interpolate = None
 from typing import List, Tuple, Optional, Dict
 import argparse
 from pathlib import Path
@@ -112,6 +121,43 @@ def load_reward_bench_samples(subset: str = "reasoning", num_samples: int = 50) 
             {"prompt": "How do you solve 2+2?", "chosen": "2 + 2 = 4. You can solve this by counting or basic arithmetic.", "rejected": "2 + 2 = 5."},
         ] * (num_samples // 3 + 1)
 
+def bucket_attention_matrix(attention_matrix: torch.Tensor, target_size: int = 50) -> torch.Tensor:
+    """Bucket attention matrix to consistent target_size x target_size."""
+    # attention_matrix shape: [num_heads, seq_len, seq_len] or [seq_len, seq_len]
+    if attention_matrix.dim() == 3:
+        # Average across heads first
+        attention_matrix = torch.mean(attention_matrix, dim=0)  # [seq_len, seq_len]
+    
+    seq_len = attention_matrix.shape[0]
+    
+    if seq_len <= target_size:
+        # If sequence is shorter than target, pad with zeros
+        padded = torch.zeros(target_size, target_size)
+        padded[:seq_len, :seq_len] = attention_matrix
+        return padded
+    
+    # Create buckets
+    bucket_size = seq_len / target_size
+    bucketed = torch.zeros(target_size, target_size)
+    
+    for i in range(target_size):
+        for j in range(target_size):
+            # Calculate bucket boundaries
+            i_start = int(i * bucket_size)
+            i_end = int((i + 1) * bucket_size)
+            j_start = int(j * bucket_size)
+            j_end = int((j + 1) * bucket_size)
+            
+            # Ensure we don't go out of bounds
+            i_end = min(i_end, seq_len)
+            j_end = min(j_end, seq_len)
+            
+            # Average attention weights in this bucket
+            if i_end > i_start and j_end > j_start:
+                bucketed[i, j] = torch.mean(attention_matrix[i_start:i_end, j_start:j_end])
+    
+    return bucketed
+
 def extract_activations(model: torch.nn.Module, input_ids: torch.Tensor, 
                        attention_mask: torch.Tensor) -> Dict[str, torch.Tensor]:
     """Extract comprehensive activations including FFN layers and attention weights."""
@@ -124,6 +170,12 @@ def extract_activations(model: torch.nn.Module, input_ids: torch.Tensor,
             'all_hidden_states': outputs.hidden_states,  # List of [batch, seq_len, hidden_size]
             'all_attentions': outputs.attentions if outputs.attentions else None,
         }
+        
+        # Extract and bucket the final attention matrix
+        if outputs.attentions is not None and len(outputs.attentions) > 0:
+            final_attention = outputs.attentions[-1][0]  # Take first batch item: [num_heads, seq_len, seq_len]
+            bucketed_attention = bucket_attention_matrix(final_attention, target_size=50)
+            activations['bucketed_attention'] = bucketed_attention
         
         # Extract feed-forward layer activations from each transformer block
         ffn_activations = []
@@ -393,6 +445,222 @@ def visualize_attention_patterns(attention_weights: List[torch.Tensor],
     plt.show()
     print(f"Enhanced attention analysis saved to: {save_path}")
 
+def visualize_bucketed_attention_patterns(bucketed_attention: List[torch.Tensor], 
+                                         model_name: str, save_path: str, model_type: str = "bidirectional"):
+    """Visualize bucketed attention patterns (50x50 matrices)."""
+    if not bucketed_attention:
+        print("No bucketed attention data available for visualization")
+        return
+    
+    # Average across all samples - now they're all 50x50
+    avg_attention = torch.mean(torch.stack(bucketed_attention, dim=0), dim=0)  # [50, 50]
+    
+    fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+    fig.suptitle(f'Bucketed Attention Analysis: {model_name} ({model_type})', fontsize=16)
+    
+    # 1. Main attention heatmap
+    sns.heatmap(avg_attention.numpy(), ax=axes[0, 0], cmap='Blues', cbar=True,
+                xticklabels=False, yticklabels=False)
+    axes[0, 0].set_title('Average Attention Pattern (50x50 buckets)')
+    axes[0, 0].set_xlabel('Key Bucket')
+    axes[0, 0].set_ylabel('Query Bucket')
+    
+    # 2. Final bucket attention (bottom row)
+    final_bucket_attention = avg_attention[-1, :].numpy()
+    axes[0, 1].bar(range(len(final_bucket_attention)), final_bucket_attention, alpha=0.7, color='orange')
+    axes[0, 1].set_title(f'Final Bucket Attention ({model_type})')
+    axes[0, 1].set_xlabel('Context Bucket')
+    axes[0, 1].set_ylabel('Attention Weight')
+    
+    # 3. Diagonal vs off-diagonal attention
+    diagonal_sum = torch.diag(avg_attention).sum().item()
+    off_diag_sum = (avg_attention.sum() - torch.diag(avg_attention).sum()).item()
+    
+    axes[0, 2].bar(['Diagonal', 'Off-diagonal'], [diagonal_sum, off_diag_sum], 
+                   color=['blue', 'red'], alpha=0.7)
+    axes[0, 2].set_title('Diagonal vs Off-diagonal Attention')
+    axes[0, 2].set_ylabel('Total Attention Weight')
+    
+    # 4. Attention entropy by bucket
+    bucket_entropy = -torch.sum(avg_attention * torch.log(avg_attention + 1e-10), dim=1).numpy()
+    axes[1, 0].plot(bucket_entropy, marker='o', alpha=0.7, color='green')
+    axes[1, 0].set_title('Attention Entropy by Query Bucket')
+    axes[1, 0].set_xlabel('Query Bucket')
+    axes[1, 0].set_ylabel('Entropy')
+    axes[1, 0].grid(True, alpha=0.3)
+    
+    # 5. Attention received by bucket (column sums)
+    attention_received = torch.sum(avg_attention, dim=0).numpy()
+    axes[1, 1].bar(range(len(attention_received)), attention_received, alpha=0.7, color='purple')
+    axes[1, 1].set_title('Average Attention Received by Bucket')
+    axes[1, 1].set_xlabel('Key Bucket')
+    axes[1, 1].set_ylabel('Total Attention Received')
+    
+    # 6. Sample variance across bucketed attention matrices
+    if len(bucketed_attention) > 1:
+        stacked_attention = torch.stack(bucketed_attention, dim=0)  # [num_samples, 50, 50]
+        attention_variance = torch.var(stacked_attention, dim=0)  # [50, 50]
+        
+        sns.heatmap(attention_variance.numpy(), ax=axes[1, 2], cmap='Reds', cbar=True,
+                    xticklabels=False, yticklabels=False)
+        axes[1, 2].set_title('Attention Variance Across Samples')
+        axes[1, 2].set_xlabel('Key Bucket')
+        axes[1, 2].set_ylabel('Query Bucket')
+    else:
+        axes[1, 2].text(0.5, 0.5, 'Need multiple samples\nfor variance analysis', 
+                        ha='center', va='center', transform=axes[1, 2].transAxes)
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.show()
+    print(f"Bucketed attention analysis saved to: {save_path}")
+
+def create_bucketed_poster_comparison(bidirectional_attention: List[torch.Tensor],
+                                    decoder_attention: List[torch.Tensor],
+                                    bidirectional_model: str,
+                                    decoder_model: str,
+                                    save_path: str,
+                                    bi_model_type: str,
+                                    dec_model_type: str):
+    """Create poster-ready comparison using 50x50 bucketed attention matrices."""
+    
+    if not bidirectional_attention or not decoder_attention:
+        print("Need both model attention patterns for bucketed comparison")
+        return
+    
+    # Average bucketed attention patterns (all are 50x50)
+    bi_attention = torch.mean(torch.stack(bidirectional_attention, dim=0), dim=0)  # [50, 50]
+    dec_attention = torch.mean(torch.stack(decoder_attention, dim=0), dim=0)  # [50, 50]
+    
+    # Create figure with custom layout
+    fig = plt.figure(figsize=(20, 14))
+    gs = fig.add_gridspec(4, 4, height_ratios=[0.5, 2, 2, 1.5], width_ratios=[1, 1, 1, 1])
+    
+    # Title
+    fig.suptitle('Bidirectional vs Decoder Attention: Bucketed Analysis (50x50)', 
+                 fontsize=24, fontweight='bold', y=0.95)
+    
+    # Model labels
+    ax_title1 = fig.add_subplot(gs[0, :2])
+    ax_title2 = fig.add_subplot(gs[0, 2:])
+    
+    ax_title1.text(0.5, 0.5, f'BIDIRECTIONAL MODEL\n{bidirectional_model}', 
+                   ha='center', va='center', fontsize=16, fontweight='bold',
+                   bbox=dict(boxstyle="round,pad=0.3", facecolor='lightblue', alpha=0.7))
+    ax_title1.axis('off')
+    
+    ax_title2.text(0.5, 0.5, f'DECODER MODEL\n{decoder_model}', 
+                   ha='center', va='center', fontsize=16, fontweight='bold',
+                   bbox=dict(boxstyle="round,pad=0.3", facecolor='lightcoral', alpha=0.7))
+    ax_title2.axis('off')
+    
+    # Main attention heatmaps
+    ax1 = fig.add_subplot(gs[1, :2])
+    ax2 = fig.add_subplot(gs[1, 2:])
+    
+    # Bidirectional attention heatmap
+    im1 = ax1.imshow(bi_attention.numpy(), cmap='Blues', aspect='auto')
+    ax1.set_title('Bidirectional Attention (50x50 buckets)\nCan attend to entire sequence', fontsize=14)
+    ax1.set_xlabel('Key Bucket', fontsize=12)
+    ax1.set_ylabel('Query Bucket', fontsize=12)
+    cbar1 = plt.colorbar(im1, ax=ax1, shrink=0.8)
+    cbar1.set_label('Attention Weight', fontsize=10)
+    
+    # Decoder attention heatmap
+    im2 = ax2.imshow(dec_attention.numpy(), cmap='Reds', aspect='auto')
+    ax2.set_title('Decoder Attention (50x50 buckets)\nTypically causal patterns', fontsize=14)
+    ax2.set_xlabel('Key Bucket', fontsize=12)
+    ax2.set_ylabel('Query Bucket', fontsize=12)
+    cbar2 = plt.colorbar(im2, ax=ax2, shrink=0.8)
+    cbar2.set_label('Attention Weight', fontsize=10)
+    
+    # Bottom analysis row
+    ax3 = fig.add_subplot(gs[2, 0])
+    ax4 = fig.add_subplot(gs[2, 1])
+    ax5 = fig.add_subplot(gs[2, 2])
+    ax6 = fig.add_subplot(gs[2, 3])
+    
+    # Final bucket attention comparison
+    bi_final = bi_attention[-1, :].numpy()
+    dec_final = dec_attention[-1, :].numpy()
+    
+    x_pos = np.arange(50)
+    width = 0.35
+    
+    ax3.bar(x_pos - width/2, bi_final, width, label='Bidirectional', color='blue', alpha=0.7)
+    ax3.bar(x_pos + width/2, dec_final, width, label='Decoder', color='red', alpha=0.7)
+    ax3.set_title('Final Bucket Attention')
+    ax3.set_xlabel('Context Bucket')
+    ax3.set_ylabel('Attention Weight')
+    ax3.legend()
+    ax3.set_xticks([0, 10, 20, 30, 40, 49])
+    
+    # Attention entropy comparison
+    bi_entropy = -torch.sum(bi_attention * torch.log(bi_attention + 1e-10), dim=1).numpy()
+    dec_entropy = -torch.sum(dec_attention * torch.log(dec_attention + 1e-10), dim=1).numpy()
+    
+    ax4.plot(bi_entropy, 'b-', linewidth=2, label='Bidirectional', marker='o', markersize=3)
+    ax4.plot(dec_entropy, 'r-', linewidth=2, label='Decoder', marker='s', markersize=3)
+    ax4.set_title('Attention Entropy by Bucket')
+    ax4.set_xlabel('Query Bucket')
+    ax4.set_ylabel('Entropy')
+    ax4.legend()
+    ax4.grid(True, alpha=0.3)
+    
+    # Diagonal vs off-diagonal attention
+    bi_diag = torch.diag(bi_attention).sum().item()
+    bi_off_diag = (bi_attention.sum() - torch.diag(bi_attention).sum()).item()
+    dec_diag = torch.diag(dec_attention).sum().item()
+    dec_off_diag = (dec_attention.sum() - torch.diag(dec_attention).sum()).item()
+    
+    x_labels = ['Bidirectional', 'Decoder']
+    diag_values = [bi_diag, dec_diag]
+    off_diag_values = [bi_off_diag, dec_off_diag]
+    
+    x_pos = np.arange(len(x_labels))
+    ax5.bar(x_pos - width/2, diag_values, width, label='Diagonal', color='darkblue', alpha=0.7)
+    ax5.bar(x_pos + width/2, off_diag_values, width, label='Off-diagonal', color='darkred', alpha=0.7)
+    ax5.set_title('Diagonal vs Off-diagonal\nAttention Distribution')
+    ax5.set_ylabel('Total Attention Weight')
+    ax5.set_xticks(x_pos)
+    ax5.set_xticklabels(x_labels)
+    ax5.legend()
+    
+    # Attention concentration
+    bi_max_attention = torch.max(bi_attention, dim=1)[0].numpy()
+    dec_max_attention = torch.max(dec_attention, dim=1)[0].numpy()
+    
+    ax6.plot(bi_max_attention, 'b-', linewidth=2, label='Bidirectional', marker='o', markersize=3)
+    ax6.plot(dec_max_attention, 'r-', linewidth=2, label='Decoder', marker='s', markersize=3)
+    ax6.set_title('Max Attention per Query Bucket\n(Concentration)')
+    ax6.set_xlabel('Query Bucket')
+    ax6.set_ylabel('Max Attention Weight')
+    ax6.legend()
+    ax6.grid(True, alpha=0.3)
+    
+    # Summary statistics box
+    summary_stats = f"""
+    BUCKETED ATTENTION ANALYSIS (50x50):
+    
+    Bidirectional: Mean={bi_attention.mean():.4f}, Entropy={bi_entropy.mean():.4f}
+    Decoder: Mean={dec_attention.mean():.4f}, Entropy={dec_entropy.mean():.4f}
+    
+    This bucketing approach handles variable sequence lengths consistently,
+    revealing architectural differences that persist across input sizes.
+    """
+    
+    ax_summary = fig.add_subplot(gs[3, :])
+    ax_summary.text(0.5, 0.5, summary_stats, fontsize=12, ha='center', va='center',
+                   bbox=dict(boxstyle="round,pad=0.5", facecolor='lightyellow', alpha=0.9),
+                   transform=ax_summary.transAxes)
+    ax_summary.axis('off')
+    
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.9, bottom=0.1)
+    plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
+    plt.show()
+    print(f"Bucketed poster comparison saved to: {save_path}")
+
 def main():
     parser = argparse.ArgumentParser(description="Analyze model activations on RewardBench")
     parser.add_argument("--model", type=str, default="answerdotai/ModernBERT-base",
@@ -438,7 +706,8 @@ def main():
     
     # Process samples and collect activations
     all_activations = []
-    all_attention = []
+    all_attention = []  # Raw attention (for compatibility)
+    all_bucketed_attention = []  # 50x50 bucketed attention matrices
     sample_labels = []
     
     for i, sample in enumerate(samples):
@@ -466,6 +735,10 @@ def main():
         if activations['all_attentions'] is not None:
             all_attention.append(activations['all_attentions'][-1].cpu())  # Final layer attention
         
+        # Store bucketed attention if available
+        if 'bucketed_attention' in activations:
+            all_bucketed_attention.append(activations['bucketed_attention'].cpu())
+        
         # Also process rejected response if available
         if "rejected" in sample:
             rejected = sample["rejected"]
@@ -484,14 +757,27 @@ def main():
             
             if activations_rej['all_attentions'] is not None:
                 all_attention.append(activations_rej['all_attentions'][-1].cpu())
+            
+            # Store bucketed attention for rejected if available
+            if 'bucketed_attention' in activations_rej:
+                all_bucketed_attention.append(activations_rej['bucketed_attention'].cpu())
     
     print("\nGenerating visualizations...")
+    if all_bucketed_attention:
+        print(f"Using bucketed attention matrices: {len(all_bucketed_attention)} samples (50x50 each)")
+    elif all_attention:
+        print(f"Using raw attention matrices: {len(all_attention)} samples (variable sizes)")
     
     # Create visualizations
     activation_save_path = output_dir / f"{args.model.replace('/', '_')}_activations.png"
     visualize_activations(all_activations, sample_labels, args.model, str(activation_save_path))
     
-    if all_attention:
+    # Use bucketed attention for visualization if available
+    if all_bucketed_attention:
+        attention_save_path = output_dir / f"{args.model.replace('/', '_')}_bucketed_attention.png"
+        visualize_bucketed_attention_patterns(all_bucketed_attention, args.model, str(attention_save_path), model_type)
+    elif all_attention:
+        # Fallback to original visualization
         attention_save_path = output_dir / f"{args.model.replace('/', '_')}_attention.png"
         visualize_attention_patterns(all_attention, args.model, str(attention_save_path), model_type)
     
@@ -512,6 +798,7 @@ def main():
             "min": float(activations_tensor.min()),
         },
         "attention_collected": len(all_attention) > 0,
+        "bucketed_attention_collected": len(all_bucketed_attention) > 0,
         "sample_types": list(set(sample_labels)),
     }
     
@@ -563,22 +850,30 @@ def main():
                 compare_activations.append(pooled.cpu())
                 if activations['all_attentions'] is not None:
                     compare_attention.append(activations['all_attentions'][-1].cpu())
+                
+                # Store bucketed attention for comparison
+                if 'bucketed_attention' in activations:
+                    if 'compare_bucketed_attention' not in locals():
+                        compare_bucketed_attention = []
+                    compare_bucketed_attention.append(activations['bucketed_attention'].cpu())
             
-            # Create comparison visualizations
-            if compare_attention:
-                compare_attention_path = output_dir / f"{args.compare_model.replace('/', '_')}_attention_comparison.png"
-                visualize_attention_patterns(compare_attention, args.compare_model, 
+            # Create comparison visualizations using bucketed data if available
+            if 'compare_bucketed_attention' in locals() and compare_bucketed_attention:
+                compare_attention_path = output_dir / f"{args.compare_model.replace('/', '_')}_bucketed_attention.png"
+                visualize_bucketed_attention_patterns(compare_bucketed_attention, args.compare_model, 
                                            str(compare_attention_path), compare_model_type)
                 
-                # Create poster-ready comparison if we have both types
-                if model_type != compare_model_type:
-                    poster_path = output_dir / "poster_ready_comparison.png"
-                    if model_type == "bidirectional":
-                        create_poster_comparison_visualization(all_attention, compare_attention,
-                                                             args.model, args.compare_model, str(poster_path))
-                    else:
-                        create_poster_comparison_visualization(compare_attention, all_attention,
-                                                             args.compare_model, args.model, str(poster_path))
+                # Create poster-ready comparison if we have both types and bucketed data
+                if model_type != compare_model_type and all_bucketed_attention:
+                    poster_path = output_dir / "bucketed_poster_comparison.png"
+                    create_bucketed_poster_comparison(all_bucketed_attention, compare_bucketed_attention,
+                                                     args.model, args.compare_model, str(poster_path), 
+                                                     model_type, compare_model_type)
+            elif compare_attention:
+                # Fallback to raw attention if bucketed not available
+                compare_attention_path = output_dir / f"{args.compare_model.replace('/', '_')}_attention.png"
+                visualize_attention_patterns(compare_attention, args.compare_model, 
+                                           str(compare_attention_path), compare_model_type)
     
     print(f"\nAnalysis complete! Results saved to: {output_dir}")
     print(f"Summary: {summary_path}")
@@ -593,6 +888,10 @@ def main():
     if "chosen_vs_rejected" in summary:
         print(f"Chosen vs Rejected mean difference: {summary['chosen_vs_rejected']['mean_difference']:.4f}")
         print(f"Chosen vs Rejected cosine similarity: {summary['chosen_vs_rejected']['cosine_similarity']:.4f}")
+    
+    if summary['bucketed_attention_collected']:
+        print(f"\nEnhanced Analysis: Successfully created {len(all_bucketed_attention)} bucketed 50x50 attention matrices")
+        print(f"This solves variable sequence length issues and provides richer, consistent visualization")
     
     print(f"\n=== Usage Instructions ===\n")
     print(f"To run comparison with decoder model (e.g., GPT-2):")
