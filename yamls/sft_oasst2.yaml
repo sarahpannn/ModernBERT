@@ -85,7 +85,7 @@ device_train_microbatch_size: 8
 # device_eval_microbatch_size: 4
 
 # Training duration and evaluation
-max_duration: "1ep"  # 3 epochs
+max_duration: "2ep"
 eval_interval: "100ba"  # evaluate every 500 batches
 train_subset_num_batches: -1  # use full dataset
 eval_subset_num_batches: -1
@@ -110,11 +110,11 @@ precision: "amp_fp16"  # mixed precision training
 device: "gpu"
 
 # Checkpointing
-# save_folder: "./checkpoints/sft_oasst2"
+save_folder: "./checkpoints/sft_oasst2"
 save_interval: "1000ba"
 save_num_checkpoints_to_keep: 2
 save_overwrite: false
-save_final_model: true
+save_final_model: false
 final_model_name: "ModernBERT-sft-oasst2"
 
 # Logging

@@ -4,6 +4,8 @@
 # Follow the instructions in the README to set up ./my-copy-c4
 # Or point data paths to your remote C4 dataset
 # data_local: ./my-copy-c4
+
+# LINK TO ORIGINAL RUN: https://wandb.ai/sarahpan888/chat_sweep_db/runs/zzdjkjqr/overview
 data_remote: sarahpann/mlm_cls_skywork
 
 max_seq_len: 3600
@@ -12,18 +14,22 @@ mlm_probability: 0.30 # FlexBERT should use 30% masking for optimal performance
 
 # Run Name
 
-run_name: ${format_lr:${optimizer.lr}}_lr_${model.freeze_layers}_freeze_layers_${first_word:${prefix}}_prefix
+run_name: "chat_no_lf"
 
+prefix: "Select the best response. "
 
+subset: chat
 # Model
 model:
   name: modern_bert
   pretrained_model_name: answerdotai/ModernBERT-large
   tokenizer_name: answerdotai/ModernBERT-large
-  # pretrained_checkpoint: answerdotai/ModernBERT-large
-  pretrained_checkpoint: sarahpann/ModernBERT-sft-oasst2
+  pretrained_checkpoint: answerdotai/ModernBERT-large
   # freeze: true
-  # freeze_layers: 0 # valid are 0 through 27
+  freeze_layers: 0 # valid are 0 through 27
+  mixed_mlm: false
+  use_dora: false
+  r_dim: 0
 
   model_config:
     attention_bias: false
@@ -71,7 +77,7 @@ model:
 
 add_prefix: true
 # prefix: "Determine which response is the best choice based on mathematical or programming accuracy. " # TODO: Change
-freeze: true
+freeze: false
 
 # Dataloaders
 train_loader:
@@ -122,7 +128,7 @@ scheduler:
 
 optimizer:
   name: decoupled_adamw
-  # lr: 1e-4
+  lr: 0.00007865216281871976
   betas:
   - 0.9
   - 0.98
@@ -132,7 +138,7 @@ optimizer:
 
 # algorithms:
 
-# max_duration: 3ep # Subsample the training data for ~275M samples
+max_duration: 1ep # Subsample the training data for ~275M samples
 eval_interval: 50ba
 global_train_batch_size: 256
 
@@ -163,7 +169,7 @@ algorithms:
 # (Optional) W&B logging
 loggers:
   wandb:
-    project: bert24-flan
+    project: ablation
     entity: sarahpan888
 
 # (Optional) Checkpoint to local filesystem or remote object store

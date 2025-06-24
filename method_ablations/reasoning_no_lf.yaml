@@ -1,29 +1,37 @@
-# Note that some of the fields in this template haven't been filled in yet.
+ # Note that some of the fields in this template haven't been filled in yet.
 # Please resolve any `null` fields before launching!
 
 # Follow the instructions in the README to set up ./my-copy-c4
 # Or point data paths to your remote C4 dataset
 # data_local: ./my-copy-c4
+
+# LINK TO ORIGINAL RUN: https://wandb.ai/sarahpan888/reasoning_dora/runs/mvi0bs3b?nw=nwusersarahpan888
 data_remote: sarahpann/mlm_cls_skywork
 
 max_seq_len: 3600
 tokenizer_name: bclavie/olmo_bert_template # switch to bert tokenizer until we add [MASK] token to the llama tokenizer meta-llama/Llama-2-7b-hf
-mlm_probability: 0.30 # FlexBERT should use 30% masking for optimal performance
+mlm_probability: 0.0 # FlexBERT should use 30% masking for optimal performance
 
 # Run Name
+save: true
 
-run_name: ${format_lr:${optimizer.lr}}_lr_${model.freeze_layers}_freeze_layers_${first_word:${prefix}}_prefix
+# run_name: ${format_lr:${optimizer.lr}}_lr_${model.freeze_layers}_freeze_layers_${first_word:${prefix}}_prefix
+run_name: reasoning_no_lf
 
+prefix: "Which response is more correct? "
 
+subset: reasoning
 # Model
 model:
   name: modern_bert
   pretrained_model_name: answerdotai/ModernBERT-large
   tokenizer_name: answerdotai/ModernBERT-large
-  # pretrained_checkpoint: answerdotai/ModernBERT-large
-  pretrained_checkpoint: sarahpann/ModernBERT-sft-oasst2
+  pretrained_checkpoint: answerdotai/ModernBERT-large
   # freeze: true
-  # freeze_layers: 0 # valid are 0 through 27
+  freeze_layers: 0 # valid are 0 through 27
+  mixed_mlm: false
+  use_dora: true
+  r_dim: 128
 
   model_config:
     attention_bias: false
@@ -122,7 +130,7 @@ scheduler:
 
 optimizer:
   name: decoupled_adamw
-  # lr: 1e-4
+  lr: 0.0001327475273202738
   betas:
   - 0.9
   - 0.98
@@ -132,18 +140,18 @@ optimizer:
 
 # algorithms:
 
-# max_duration: 3ep # Subsample the training data for ~275M samples
+max_duration: 1ep # Subsample the training data for ~275M samples
 eval_interval: 50ba
 global_train_batch_size: 256
 
 # System
 seed: 17
-device_train_microbatch_size: 2
+device_train_microbatch_size: 1 # downsize because using DoRA
 # device_train_microbatch_size: auto
 precision: amp_bf16
 
 global_eval_batch_size: 256
-device_eval_microbatch_size: 2
+device_eval_microbatch_size: 1
 
 # Logging
 progress_bar: false
@@ -163,7 +171,7 @@ algorithms:
 # (Optional) W&B logging
 loggers:
   wandb:
-    project: bert24-flan
+    project: ablation
     entity: sarahpan888
 
 # (Optional) Checkpoint to local filesystem or remote object store
