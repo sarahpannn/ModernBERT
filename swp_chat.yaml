@@ -33,7 +33,7 @@ parameters:
     value: false
 
   max_duration:
-    value: 1ep
+    value: 3ep
   # model.r_dim:
   #   values: [8, 16, 32, 64, 128]
   

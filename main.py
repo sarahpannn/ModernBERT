@@ -344,6 +344,7 @@ def create_chat_ds(split, tokenizer, max_seq_length,
     if overwrite_prefix:
         prefix = "Which response is the most helpful, relevant, and correct? "
     if not eval_mode:
+        all_datasets = []
         dataset = data_module.create_preference_to_flan_style_dataset(
             task="sarahpann/skywork_chat",
             split=split,
@@ -355,6 +356,8 @@ def create_chat_ds(split, tokenizer, max_seq_length,
             dataset_subset="",
             task_column_names={"sarahpann/skywork_chat": ('question', 'chosen', 'rejected', 'og_dataset')}
         )
+
+        all_datasets.append(dataset)
 
         dataset1 = data_module.create_preference_to_flan_style_dataset(
             task="sarahpann/webgpt_comparisons_simp",
@@ -368,23 +371,29 @@ def create_chat_ds(split, tokenizer, max_seq_length,
             task_column_names={"sarahpann/webgpt_comparisons_simp": ('question', 'chosen', 'rejected')}
         )
 
-        if not overwrite_prefix: # no hhrlhf if mixed training
-            dataset2 = data_module.create_preference_to_flan_style_dataset(
-                task="sarahpann/simp_hhrlhf",
-                split=split,
-                tokenizer_name=tokenizer,
-                max_seq_length=max_seq_length,
-                prefix=prefix,
+        all_datasets.append(dataset1)
 
-                dataset_name="sarahpann/simp_hhrlhf",
-                dataset_subset="",
-                task_column_names={"sarahpann/simp_hhrlhf": ('question', 'chosen', 'rejected')}
-            )
+        # if not overwrite_prefix: # no hhrlhf if mixed training
+        #     dataset2 = data_module.create_preference_to_flan_style_dataset(
+        #         task="sarahpann/simp_hhrlhf",
+        #         split=split,
+        #         tokenizer_name=tokenizer,
+        #         max_seq_length=max_seq_length,
+        #         prefix=prefix,
 
-            dataset = datasets.concatenate_datasets([dataset, dataset1, dataset2])
+        #         dataset_name="sarahpann/simp_hhrlhf",
+        #         dataset_subset="",
+        #         task_column_names={"sarahpann/simp_hhrlhf": ('question', 'chosen', 'rejected')}
+        #     )
+
+        #     all_datasets.append(dataset2)
+
+        #     # dataset = datasets.concatenate_datasets([dataset, dataset1, dataset2])
         
-        else: 
-            dataset = datasets.concatenate_datasets([dataset, dataset1])
+        # else: 
+        #     dataset = datasets.concatenate_datasets([dataset, dataset1])
+
+        dataset = datasets.concatenate_datasets(all_datasets)
 
     else:
         dataset1 = data_module.create_preference_to_flan_style_dataset(
